@@ -21,6 +21,10 @@ app/build/outputs/apk/debug/app-debug.apk
 
 ## Release notes
 
+### 0.2.1
+
+- Fix widget loading on Android launchers by replacing an unsupported raw `View` with a RemoteViews-safe `TextView` dot.
+
 ### 0.2.0
 
 - Fancier 4x1 widget styling

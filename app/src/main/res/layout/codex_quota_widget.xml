@@ -60,11 +60,13 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <View
+            <TextView
                 android:id="@+id/live_dot"
                 android:layout_width="7dp"
                 android:layout_height="7dp"
-                android:background="@drawable/pulse_dot" />
+                android:background="@drawable/pulse_dot"
+                android:includeFontPadding="false"
+                android:text="" />
 
             <TextView
                 android:id="@+id/live_text"

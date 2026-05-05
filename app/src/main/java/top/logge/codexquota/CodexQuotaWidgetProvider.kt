@@ -37,9 +37,9 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
 
     private fun renderLoading(context: Context, manager: AppWidgetManager, id: Int) {
         val views = baseViews(context)
-        views.setTextViewText(R.id.primary_text, "5h: updating…")
-        views.setTextViewText(R.id.weekly_text, "Week: updating…")
-        views.setTextViewText(R.id.footer, "Fetching Codex quota")
+        views.setTextViewText(R.id.primary_text, "5h updating…")
+        views.setTextViewText(R.id.weekly_text, "W updating…")
+        views.setTextViewText(R.id.footer, "fetching")
         manager.updateAppWidget(id, views)
     }
 
@@ -47,18 +47,18 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
         val views = baseViews(context)
         result.onSuccess { quota ->
             views.setTextViewText(R.id.plan, quota.plan.uppercase(Locale.ROOT).ifBlank { "CODEX" })
-            views.setTextViewText(R.id.primary_text, "5h: ${quota.primary.used}% used · resets ${quota.primary.reset}")
+            views.setTextViewText(R.id.primary_text, "5h ${quota.primary.used}% · ${quota.primary.reset}")
             views.setProgressBar(R.id.primary_bar, 100, quota.primary.used, false)
-            views.setTextViewText(R.id.weekly_text, "Week: ${quota.weekly.used}% used · resets ${quota.weekly.reset}")
+            views.setTextViewText(R.id.weekly_text, "W ${quota.weekly.used}% · ${quota.weekly.reset}")
             views.setProgressBar(R.id.weekly_bar, 100, quota.weekly.used, false)
-            views.setTextViewText(R.id.footer, "Updated ${SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())} · tap to refresh")
+            views.setTextViewText(R.id.footer, "upd ${SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())}\ntap")
         }.onFailure { error ->
             views.setTextViewText(R.id.plan, "ERR")
             views.setTextViewText(R.id.primary_text, "Quota unavailable")
             views.setProgressBar(R.id.primary_bar, 100, 0, false)
-            views.setTextViewText(R.id.weekly_text, error.message?.take(42) ?: "Check endpoint")
+            views.setTextViewText(R.id.weekly_text, error.message?.take(24) ?: "Check endpoint")
             views.setProgressBar(R.id.weekly_bar, 100, 0, false)
-            views.setTextViewText(R.id.footer, "Tap to retry")
+            views.setTextViewText(R.id.footer, "tap\nretry")
         }
         manager.updateAppWidget(id, views)
     }

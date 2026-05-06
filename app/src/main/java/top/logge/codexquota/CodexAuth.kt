@@ -42,10 +42,15 @@ object CodexAuth {
             method = "POST",
             body = JSONObject().put("client_id", CLIENT_ID).toString(),
         )
+        val userCode = response.optString("user_code", response.optString("usercode"))
+        val deviceAuthId = response.optString("device_auth_id", response.optString("deviceAuthId"))
+        if (userCode.isBlank() || deviceAuthId.isBlank()) {
+            error("Device code response missing fields")
+        }
         return DeviceLogin(
             verificationUrl = "$ISSUER/codex/device",
-            userCode = response.optString("user_code", response.optString("usercode")),
-            deviceAuthId = response.optString("device_auth_id", response.optString("deviceAuthId")),
+            userCode = userCode,
+            deviceAuthId = deviceAuthId,
             intervalSeconds = response.optString("interval", "5").toLongOrNull()?.let { max(1, it) } ?: 5,
         )
     }
@@ -64,7 +69,7 @@ object CodexAuth {
                 Thread.sleep(login.intervalSeconds * 1000L)
             } catch (e: Exception) {
                 lastError = e
-                Thread.sleep(login.intervalSeconds * 1000L)
+                break
             }
         }
         throw lastError ?: IllegalStateException("Login timed out")
@@ -122,7 +127,7 @@ object CodexAuth {
             contentType = "application/json",
         )
         if (response.status == 403 || response.status == 404) throw PendingAuthException()
-        if (response.status !in 200..299) error("Device auth HTTP ${response.status}")
+        if (response.status !in 200..299) error("Device auth HTTP ${response.status}: ${response.body.take(160)}")
         return JSONObject(response.body)
     }
 
@@ -140,7 +145,7 @@ object CodexAuth {
             body = body,
             contentType = "application/x-www-form-urlencoded",
         )
-        return authFromTokenResponse(json, json.getString("refresh_token"))
+        return authFromTokenResponse(json, json.optString("refresh_token", ""))
     }
 
     private fun authFromTokenResponse(json: JSONObject, fallbackRefreshToken: String): AuthState {
@@ -178,7 +183,7 @@ object CodexAuth {
             headers = headers,
         )
         if (response.status == 401) throw UnauthorizedException()
-        if (response.status !in 200..299) error("Usage HTTP ${response.status}")
+        if (response.status !in 200..299) error("Usage HTTP ${response.status}: ${response.body.take(160)}")
         return parseUsage(JSONObject(response.body), auth.planType ?: "codex")
     }
 
@@ -187,6 +192,7 @@ object CodexAuth {
             ?: json.optJSONObject("rateLimit")
             ?: json.optJSONObject("rate_limit_status")
             ?: json.optJSONObject("rateLimitStatus")
+            ?: json.optJSONObject("usage")
             ?: JSONObject()
         val primary = rateLimit.optJSONObject("primary_window")
             ?: rateLimit.optJSONObject("primaryWindow")

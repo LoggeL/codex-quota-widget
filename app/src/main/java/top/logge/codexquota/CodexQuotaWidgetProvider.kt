@@ -8,9 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.widget.RemoteViews
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -32,7 +29,7 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
     private fun fetchAndRender(context: Context, animate: Boolean) = thread {
         val manager = AppWidgetManager.getInstance(context)
         val ids = manager.getAppWidgetIds(ComponentName(context, CodexQuotaWidgetProvider::class.java))
-        val result = runCatching { QuotaClient.fetch() }
+        val result = runCatching { CodexAuth.fetchQuota(context) }
         if (animate && result.isSuccess) {
             animateBars(context, manager, ids, result.getOrThrow())
         } else {
@@ -107,32 +104,9 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
 }
 
 data class WindowQuota(val used: Int, val reset: String)
-data class Quota(val plan: String, val primary: WindowQuota, val weekly: WindowQuota)
-
-object QuotaClient {
-    private const val ENDPOINT = "https://codex-quota.logge.top/status.json"
-
-    fun fetch(): Quota {
-        val conn = (URL(ENDPOINT).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 5_000
-            readTimeout = 5_000
-            requestMethod = "GET"
-        }
-        val body = conn.inputStream.bufferedReader().use { it.readText() }
-        if (conn.responseCode !in 200..299) error("HTTP ${conn.responseCode}")
-        val json = JSONObject(body)
-        return Quota(
-            plan = json.optString("planType", "codex"),
-            primary = json.window("primary"),
-            weekly = json.window("secondary"),
-        )
-    }
-
-    private fun JSONObject.window(name: String): WindowQuota {
-        val o = optJSONObject(name) ?: JSONObject()
-        return WindowQuota(
-            used = o.optDouble("usedPercent", 0.0).roundToInt().coerceIn(0, 100),
-            reset = o.optString("resetsIn", "?")
-        )
-    }
-}
+data class Quota(
+    val plan: String,
+    val primary: WindowQuota,
+    val weekly: WindowQuota,
+    val creditsBalance: String? = null,
+)

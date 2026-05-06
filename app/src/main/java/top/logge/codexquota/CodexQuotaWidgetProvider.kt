@@ -72,7 +72,7 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
     ) {
         val views = baseViews(context)
         result.onSuccess { quota ->
-            views.setTextViewText(R.id.plan, quota.plan.uppercase(Locale.ROOT).ifBlank { "CODEX" })
+            views.setTextViewText(R.id.plan, quota.plan.widgetPlanLabel())
             views.setTextViewText(R.id.live_text, if (isAnimating) "animating" else "live quota")
             views.setTextViewText(R.id.primary_text, "5h ${quota.primary.used}% · ${quota.primary.reset}")
             views.setProgressBar(R.id.primary_bar, 100, quota.primary.used, false)
@@ -98,6 +98,22 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
         val pending = PendingIntent.getBroadcast(context, 0, intent, flags)
         views.setOnClickPendingIntent(R.id.widget_root, pending)
         return views
+    }
+
+    private fun String.widgetPlanLabel(): String {
+        val normalized = lowercase(Locale.ROOT).replace("-", "_").replace(" ", "_")
+        return when {
+            normalized.isBlank() -> "CODEX"
+            normalized.contains("pro_lit") || normalized.contains("prolit") -> "PRO"
+            normalized.contains("pro") -> "PRO"
+            normalized.contains("plus") -> "PLUS"
+            normalized.contains("team") -> "TEAM"
+            normalized.contains("business") -> "BIZ"
+            normalized.contains("enterprise") -> "ENT"
+            normalized.contains("edu") -> "EDU"
+            normalized.contains("free") -> "FREE"
+            else -> "CODEX"
+        }
     }
 
     companion object { const val ACTION_REFRESH = "top.logge.codexquota.REFRESH" }

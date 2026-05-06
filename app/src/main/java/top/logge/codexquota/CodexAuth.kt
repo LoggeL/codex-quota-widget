@@ -213,12 +213,55 @@ object CodexAuth {
 
     private fun JSONObject.window(): WindowQuota = WindowQuota(
         used = optDouble("used_percent", optDouble("usedPercent", 0.0)).toInt().coerceIn(0, 100),
-        reset = fmtResetsAt(optLong("resets_at", optLong("resetsAt", 0L))),
+        reset = remainingTimeLabel(),
     )
 
-    private fun fmtResetsAt(unixSeconds: Long): String {
-        if (unixSeconds <= 0) return "?"
-        val mins = ((unixSeconds * 1000L - System.currentTimeMillis()) / 60_000L).coerceAtLeast(0)
+    private fun JSONObject.remainingTimeLabel(): String {
+        firstNonBlank(
+            "resets_in",
+            "resetsIn",
+            "reset_in",
+            "resetIn",
+            "remaining_time",
+            "remainingTime",
+            "time_remaining",
+            "timeRemaining",
+        )?.let { return it }
+
+        firstPositiveLong("reset_after_seconds", "resetAfterSeconds", "reset_after", "resetAfter")
+            ?.let { return fmtDurationMins((it / 60L).coerceAtLeast(0)) }
+
+        firstPositiveLong("resets_at", "resetsAt", "reset_at", "resetAt")
+            ?.let { return fmtResetsAt(it) }
+
+        return "?"
+    }
+
+    private fun JSONObject.firstNonBlank(vararg keys: String): String? {
+        for (key in keys) {
+            val value = optString(key, "").trim()
+            if (value.isNotBlank() && value != "null") return value
+        }
+        return null
+    }
+
+    private fun JSONObject.firstPositiveLong(vararg keys: String): Long? {
+        for (key in keys) {
+            if (!has(key)) continue
+            val value = optLong(key, 0L)
+            if (value > 0L) return value
+        }
+        return null
+    }
+
+    private fun fmtResetsAt(timestamp: Long): String {
+        if (timestamp <= 0) return "?"
+        val millis = if (timestamp > 10_000_000_000L) timestamp else timestamp * 1000L
+        val mins = ((millis - System.currentTimeMillis()) / 60_000L).coerceAtLeast(0)
+        return fmtDurationMins(mins)
+    }
+
+    private fun fmtDurationMins(mins: Long): String {
         val hours = mins / 60
         val days = hours / 24
         return when {

@@ -74,9 +74,9 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
         result.onSuccess { quota ->
             views.setTextViewText(R.id.plan, quota.plan.widgetPlanLabel())
             views.setTextViewText(R.id.live_text, if (isAnimating) "animating" else "live quota")
-            views.setTextViewText(R.id.primary_text, "5h ${quota.primary.used}% · ${quota.primary.reset}")
+            views.setTextViewText(R.id.primary_text, "5h ${quota.primary.used}% · ${quota.primary.reset.remainingLabel()}")
             views.setProgressBar(R.id.primary_bar, 100, quota.primary.used, false)
-            views.setTextViewText(R.id.weekly_text, "W ${quota.weekly.used}% · ${quota.weekly.reset}")
+            views.setTextViewText(R.id.weekly_text, "W ${quota.weekly.used}% · ${quota.weekly.reset.remainingLabel()}")
             views.setProgressBar(R.id.weekly_bar, 100, quota.weekly.used, false)
             views.setTextViewText(R.id.footer, "upd ${SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())}\ntap")
         }.onFailure { error ->
@@ -98,6 +98,11 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
         val pending = PendingIntent.getBroadcast(context, 0, intent, flags)
         views.setOnClickPendingIntent(R.id.widget_root, pending)
         return views
+    }
+
+    private fun String.remainingLabel(): String {
+        val trimmed = trim()
+        return if (trimmed.isBlank() || trimmed == "?") "rem ?" else "rem $trimmed"
     }
 
     private fun String.widgetPlanLabel(): String {

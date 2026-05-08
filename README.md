@@ -10,6 +10,7 @@ It signs in with the same ChatGPT-managed Codex device-code flow used by the Cod
 - One-time Codex / ChatGPT device-code login
 - Shows short-window usage, weekly usage, and remaining reset time
 - Tap the widget to refresh immediately
+- Aggressive stale-cache fallback so transient DNS/network failures keep showing the last good quota instead of an empty error
 - Periodic refresh through Android's normal app-widget update flow
 - Local token storage with refresh-token support
 - No hosted quota proxy required
@@ -21,7 +22,7 @@ The widget displays:
 - plan badge, e.g. `PRO`, `PLUS`, `TEAM`
 - short quota window, e.g. `5h 42% · rem 1h 23m`
 - weekly quota window, e.g. `W 18% · rem 3d 4h`
-- last update timestamp
+- last update timestamp, or cached timestamp if the last refresh fell back to stale data
 
 ## Build
 
@@ -63,6 +64,13 @@ app/build/outputs/apk/debug/app-debug.apk
 Small personal utility / experiment. Expect rough edges.
 
 ## Release notes
+
+### 0.3.1
+
+- Cache the last successful quota locally and render it immediately during widget updates.
+- Fall back to cached quota for up to 7 days when the ChatGPT usage endpoint has transient DNS/network failures.
+- Keep manual refresh forceful, but still avoid blanking the widget if the network request fails.
+
 
 ### 0.3.0
 

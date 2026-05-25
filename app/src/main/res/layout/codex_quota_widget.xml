@@ -100,15 +100,13 @@
             android:textSize="12sp"
             android:textStyle="bold" />
 
-        <ProgressBar
+        <ImageView
             android:id="@+id/primary_bar"
-            style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
             android:layout_height="8dp"
             android:layout_marginTop="4dp"
-            android:max="100"
-            android:progress="0"
-            android:progressDrawable="@drawable/progress_primary" />
+            android:contentDescription="Primary usage bar"
+            android:scaleType="fitXY" />
 
         <TextView
             android:id="@+id/weekly_text"
@@ -122,15 +120,13 @@
             android:textSize="12sp"
             android:textStyle="bold" />
 
-        <ProgressBar
+        <ImageView
             android:id="@+id/weekly_bar"
-            style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
             android:layout_height="8dp"
             android:layout_marginTop="4dp"
-            android:max="100"
-            android:progress="0"
-            android:progressDrawable="@drawable/progress_weekly" />
+            android:contentDescription="Weekly usage bar"
+            android:scaleType="fitXY" />
     </LinearLayout>
 
     <TextView

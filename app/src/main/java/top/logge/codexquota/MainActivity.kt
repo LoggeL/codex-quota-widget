@@ -12,11 +12,13 @@ import android.os.Bundle
 import android.view.Gravity
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import kotlin.concurrent.thread
 
 class MainActivity : Activity() {
     private lateinit var status: TextView
+    private lateinit var logView: TextView
     private var activeLogin: CodexAuth.DeviceLogin? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,6 +54,12 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, 24)
         }
+        logView = TextView(this).apply {
+            text = CodexQuotaLog.read(this@MainActivity)
+            textSize = 12f
+            setTextIsSelectable(true)
+            setPadding(16, 16, 16, 16)
+        }
 
         val loginButton = Button(this).apply {
             text = if (CodexAuth.isLoggedIn(this@MainActivity)) "Sign in again" else "Sign in with Codex"
@@ -60,6 +68,17 @@ class MainActivity : Activity() {
         val refreshButton = Button(this).apply {
             text = "Refresh widgets"
             setOnClickListener { refreshWidgets() }
+        }
+        val refreshLogButton = Button(this).apply {
+            text = "Refresh log"
+            setOnClickListener { refreshLog() }
+        }
+        val clearLogButton = Button(this).apply {
+            text = "Clear log"
+            setOnClickListener {
+                CodexQuotaLog.clear(this@MainActivity)
+                refreshLog()
+            }
         }
         val logoutButton = Button(this).apply {
             text = "Log out"
@@ -75,7 +94,26 @@ class MainActivity : Activity() {
         layout.addView(status)
         layout.addView(loginButton)
         layout.addView(refreshButton)
+        layout.addView(refreshLogButton)
+        layout.addView(clearLogButton)
         layout.addView(logoutButton)
+
+        val logTitle = TextView(this).apply {
+            text = "Widget log"
+            textSize = 18f
+            gravity = Gravity.CENTER
+            setPadding(0, 28, 0, 8)
+        }
+        val logScroll = ScrollView(this).apply {
+            addView(logView)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f,
+            )
+        }
+        layout.addView(logTitle)
+        layout.addView(logScroll)
         setContentView(layout)
     }
 
@@ -113,8 +151,17 @@ class MainActivity : Activity() {
     }
 
     private fun refreshWidgets() {
+        CodexQuotaLog.append(this, "manual refresh requested from app")
         val manager = AppWidgetManager.getInstance(this)
         val ids = manager.getAppWidgetIds(ComponentName(this, CodexQuotaWidgetProvider::class.java))
         CodexQuotaWidgetProvider().onUpdate(this, manager, ids)
+        status.text = "Refresh requested for ${ids.size} widget(s)"
+        refreshLog()
+    }
+
+    private fun refreshLog() {
+        if (::logView.isInitialized) {
+            logView.text = CodexQuotaLog.read(this)
+        }
     }
 }

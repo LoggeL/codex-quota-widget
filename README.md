@@ -8,8 +8,9 @@ It signs in with the same ChatGPT-managed Codex device-code flow used by the Cod
 
 - Android home-screen widget, optimized for a compact 4x1 layout
 - One-time Codex / ChatGPT device-code login
-- Shows short-window usage, weekly usage, and remaining reset time
+- Shows short-window usage, estimated final usage, weekly usage, and remaining reset time
 - Tap the widget to refresh immediately
+- In-app widget log for refresh/auth/network debugging
 - Aggressive stale-cache fallback so transient DNS/network failures keep showing the last good quota instead of an empty error
 - Periodic refresh through Android's normal app-widget update flow
 - Local token storage with refresh-token support
@@ -20,8 +21,10 @@ It signs in with the same ChatGPT-managed Codex device-code flow used by the Cod
 The widget displays:
 
 - plan badge, e.g. `PRO`, `PLUS`, `TEAM`
-- short quota window, e.g. `5h 42% · rem 1h 23m`
-- weekly quota window, e.g. `W 18% · rem 3d 4h`
+- short quota window, e.g. `5h 42→58% · rem 1h 23m` where the second number is estimated usage at reset
+- weekly quota window, e.g. `W 23→64% · rem 4d 12h`
+- actual-usage bars, with estimated final usage shown in the text label
+- pace label, e.g. `on track`, `watch pace`, `over pace`, or `ahead`
 - last update timestamp, or cached timestamp if the last refresh fell back to stale data
 
 ## Build
@@ -52,6 +55,7 @@ app/build/outputs/apk/debug/app-debug.apk
 4. Complete the device-code login in the browser.
 5. Add the widget to the home screen.
 6. Tap the widget whenever you want an immediate refresh.
+7. If refresh looks stuck, open **Codex Quota** and check **Widget log**.
 
 ## Security notes
 
@@ -64,6 +68,13 @@ app/build/outputs/apk/debug/app-debug.apk
 Small personal utility / experiment. Expect rough edges.
 
 ## Release notes
+
+### Next
+
+- Added estimated final usage for the 5h and weekly windows.
+- Kept bars as actual usage while showing the forecast in text.
+- Added an on-track status label derived from actual usage versus expected pace.
+- Added a persistent in-app widget log covering widget updates, tap refreshes, auth refreshes, HTTP status, cache fallback, and render completion.
 
 ### 0.3.1
 

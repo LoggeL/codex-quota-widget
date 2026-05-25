@@ -6,6 +6,12 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Shader
 import android.os.Build
 import android.widget.RemoteViews
 import org.json.JSONObject
@@ -18,12 +24,14 @@ import kotlin.math.roundToInt
 
 class CodexQuotaWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
+        CodexQuotaLog.append(context, "widget onUpdate ids=${ids.size}")
         ids.forEach { renderLoading(context, manager, it) }
         fetchAndRender(context.applicationContext, animate = true, forceRefresh = false)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
+        CodexQuotaLog.append(context, "widget onReceive action=${intent.action ?: "<none>"}")
         if (intent.action == ACTION_REFRESH) fetchAndRender(context.applicationContext, animate = true, forceRefresh = true)
     }
 
@@ -31,18 +39,32 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
         val manager = AppWidgetManager.getInstance(context)
         val ids = manager.getAppWidgetIds(ComponentName(context, CodexQuotaWidgetProvider::class.java))
         val cached = loadCachedQuota(context)
+        CodexQuotaLog.append(
+            context,
+            "fetch start ids=${ids.size} force=$forceRefresh cached=${cached != null} cachedAge=${cached?.ageLabel() ?: "-"}",
+        )
 
         // Widget updates are often fired while Android is restoring network/DNS.
         // Prefer the last good quota instead of flashing an empty error state.
         if (!forceRefresh && cached != null && !cached.isOlderThan(HARD_CACHE_MS)) {
+            CodexQuotaLog.append(context, "render hard-cache first age=${cached.ageLabel()}")
             ids.forEach { id -> render(context, manager, id, Result.success(cached.quota), cachedAt = cached.savedAt, isStale = true) }
         }
 
         val result = runCatching { CodexAuth.fetchQuota(context) }
-            .onSuccess { saveCachedQuota(context, it) }
+            .onSuccess {
+                saveCachedQuota(context, it)
+                CodexQuotaLog.append(context, "fetch success plan=${it.plan} primary=${it.primary.used}% weekly=${it.weekly.used}%")
+            }
             .recoverCatching { error ->
                 val fallback = cached?.takeUnless { it.isOlderThan(MAX_STALE_MS) }
-                if (fallback != null) fallback.quota else throw error
+                if (fallback != null) {
+                    CodexQuotaLog.append(context, "fetch failed; using stale cache age=${fallback.ageLabel()} error=${error.shortLog()}")
+                    fallback.quota
+                } else {
+                    CodexQuotaLog.append(context, "fetch failed; no usable cache error=${error.shortLog()}")
+                    throw error
+                }
             }
 
         val cachedAt = if (result.isSuccess) loadCachedQuota(context)?.savedAt else cached?.savedAt
@@ -53,6 +75,7 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
         } else {
             ids.forEach { id -> render(context, manager, id, result, cachedAt = cachedAt, isStale = isStale) }
         }
+        CodexQuotaLog.append(context, "render done ids=${ids.size} success=${result.isSuccess} stale=$isStale")
     }
 
     private fun animateBars(
@@ -88,8 +111,8 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
         views.setTextViewText(R.id.live_text, "fetching")
         views.setTextViewText(R.id.primary_text, "5h updating…")
         views.setTextViewText(R.id.weekly_text, "W updating…")
-        views.setProgressBar(R.id.primary_bar, 100, 8, false)
-        views.setProgressBar(R.id.weekly_bar, 100, 8, false)
+        views.setImageViewBitmap(R.id.primary_bar, usageBarBitmap(8, null, BarPalette.Primary))
+        views.setImageViewBitmap(R.id.weekly_bar, usageBarBitmap(8, null, BarPalette.Weekly))
         views.setTextViewText(R.id.footer, "sync\nnow")
         manager.updateAppWidget(id, views)
     }
@@ -111,20 +134,24 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
                 else -> "live quota"
             }
             val footer = if (isStale && cachedAt != null) "cache ${formatTime(cachedAt)}\ntap" else "upd ${formatTime()}\ntap"
+            val primaryPace = quota.primary.expectedUsedPercent(PRIMARY_WINDOW_MS)
+            val weeklyPace = quota.weekly.expectedUsedPercent(WEEKLY_WINDOW_MS)
+            val primaryEstimate = quota.primary.estimatedFinalUsedPercent(PRIMARY_WINDOW_MS)
+            val weeklyEstimate = quota.weekly.estimatedFinalUsedPercent(WEEKLY_WINDOW_MS)
             views.setTextViewText(R.id.plan, quota.plan.widgetPlanLabel())
-            views.setTextViewText(R.id.live_text, liveLabel)
-            views.setTextViewText(R.id.primary_text, "5h ${quota.primary.used}% · ${quota.primary.reset.remainingLabel()}")
-            views.setProgressBar(R.id.primary_bar, 100, quota.primary.used, false)
-            views.setTextViewText(R.id.weekly_text, "W ${quota.weekly.used}% · ${quota.weekly.reset.remainingLabel()}")
-            views.setProgressBar(R.id.weekly_bar, 100, quota.weekly.used, false)
+            views.setTextViewText(R.id.live_text, quota.paceLabel(liveLabel, primaryPace, weeklyPace))
+            views.setTextViewText(R.id.primary_text, "5h ${quota.primary.used.estimateLabel(primaryEstimate)} · ${quota.primary.reset.remainingLabel()}")
+            views.setImageViewBitmap(R.id.primary_bar, usageBarBitmap(quota.primary.used, primaryEstimate, BarPalette.Primary))
+            views.setTextViewText(R.id.weekly_text, "W ${quota.weekly.used.estimateLabel(weeklyEstimate)} · ${quota.weekly.reset.remainingLabel()}")
+            views.setImageViewBitmap(R.id.weekly_bar, usageBarBitmap(quota.weekly.used, weeklyEstimate, BarPalette.Weekly))
             views.setTextViewText(R.id.footer, footer)
         }.onFailure { error ->
             views.setTextViewText(R.id.plan, "ERR")
             views.setTextViewText(R.id.live_text, "offline")
             views.setTextViewText(R.id.primary_text, "Quota unavailable")
-            views.setProgressBar(R.id.primary_bar, 100, 0, false)
+            views.setImageViewBitmap(R.id.primary_bar, usageBarBitmap(0, null, BarPalette.Primary))
             views.setTextViewText(R.id.weekly_text, error.message?.take(24) ?: "Check endpoint")
-            views.setProgressBar(R.id.weekly_bar, 100, 0, false)
+            views.setImageViewBitmap(R.id.weekly_bar, usageBarBitmap(0, null, BarPalette.Weekly))
             views.setTextViewText(R.id.footer, "tap\nretry")
         }
         manager.updateAppWidget(id, views)
@@ -139,9 +166,103 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
         return views
     }
 
+    private fun usageBarBitmap(used: Int, estimate: Int?, palette: BarPalette): Bitmap {
+        val width = 360
+        val height = 24
+        val radius = height / 2f
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        paint.color = Color.rgb(39, 50, 65)
+        canvas.drawRoundRect(0f, 4f, width.toFloat(), 20f, radius, radius, paint)
+
+        val usedWidth = (width * used.coerceIn(0, 100) / 100f).coerceAtLeast(if (used > 0) 6f else 0f)
+        if (usedWidth > 0f) {
+            paint.shader = LinearGradient(
+                0f,
+                0f,
+                width.toFloat(),
+                0f,
+                intArrayOf(palette.start, palette.center, palette.end),
+                null,
+                Shader.TileMode.CLAMP,
+            )
+            canvas.drawRoundRect(0f, 4f, usedWidth, 20f, radius, radius, paint)
+            paint.shader = null
+        }
+
+        estimate?.let {
+            val x = (width * it.coerceIn(0, 100) / 100f).coerceIn(3f, width - 3f)
+            paint.color = Color.WHITE
+            canvas.drawRoundRect(x - 2f, 1f, x + 2f, 23f, 2f, 2f, paint)
+            paint.color = Color.argb(120, 11, 13, 16)
+            canvas.drawRoundRect(x - 1f, 3f, x + 1f, 21f, 1f, 1f, paint)
+        }
+
+        return bitmap
+    }
+
+    private enum class BarPalette(val start: Int, val center: Int, val end: Int) {
+        Primary(Color.rgb(110, 231, 249), Color.rgb(116, 167, 255), Color.rgb(167, 139, 250)),
+        Weekly(Color.rgb(52, 211, 153), Color.rgb(250, 204, 21), Color.rgb(251, 113, 133)),
+    }
+
     private fun String.remainingLabel(): String {
         val trimmed = trim()
         return if (trimmed.isBlank() || trimmed == "?") "rem ?" else "rem $trimmed"
+    }
+
+    private fun WindowQuota.expectedUsedPercent(windowMs: Long): Int? {
+        val remainingMs = reset.parseDurationMs() ?: return null
+        val elapsedMs = (windowMs - remainingMs).coerceIn(0L, windowMs)
+        return ((elapsedMs.toDouble() / windowMs.toDouble()) * 100.0).roundToInt().coerceIn(0, 100)
+    }
+
+    private fun WindowQuota.estimatedFinalUsedPercent(windowMs: Long): Int? {
+        val elapsedPercent = expectedUsedPercent(windowMs)?.takeIf { it > 0 } ?: return null
+        return ((used.toDouble() / elapsedPercent.toDouble()) * 100.0).roundToInt().coerceIn(0, 100)
+    }
+
+    private fun Int.estimateLabel(estimate: Int?): String =
+        if (estimate == null) "$this%" else "$this→$estimate%"
+
+    private fun Quota.paceLabel(fallback: String, primaryExpected: Int?, weeklyExpected: Int?): String {
+        if (primaryExpected == null && weeklyExpected == null) return fallback
+        val primaryDelta = primaryExpected?.let { primary.used - it } ?: Int.MIN_VALUE
+        val weeklyDelta = weeklyExpected?.let { weekly.used - it } ?: Int.MIN_VALUE
+        val worstDelta = max(primaryDelta, weeklyDelta)
+        return when {
+            worstDelta >= 15 -> "over pace"
+            worstDelta >= 7 -> "watch pace"
+            worstDelta <= -20 -> "ahead"
+            else -> "on track"
+        }
+    }
+
+    private fun String.parseDurationMs(): Long? {
+        val normalized = trim().lowercase(Locale.ROOT)
+        if (normalized.isBlank() || normalized == "?") return null
+
+        var totalMinutes = 0L
+        Regex("""(\d+)\s*([dhm])""").findAll(normalized).forEach { match ->
+            val value = match.groupValues[1].toLongOrNull() ?: return@forEach
+            totalMinutes += when (match.groupValues[2]) {
+                "d" -> value * 24L * 60L
+                "h" -> value * 60L
+                else -> value
+            }
+        }
+        if (totalMinutes > 0L) return totalMinutes * 60_000L
+
+        val colonParts = normalized.split(":")
+        if (colonParts.size == 2) {
+            val hours = colonParts[0].toLongOrNull()
+            val minutes = colonParts[1].toLongOrNull()
+            if (hours != null && minutes != null) return (hours * 60L + minutes) * 60_000L
+        }
+
+        return normalized.toLongOrNull()?.let { it.coerceAtLeast(0L) * 60_000L }
     }
 
     private fun String.widgetPlanLabel(): String {
@@ -200,6 +321,8 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
     )
 
     private fun CachedQuota.isOlderThan(maxAgeMs: Long): Boolean = System.currentTimeMillis() - savedAt > maxAgeMs
+    private fun CachedQuota.ageLabel(): String = "${((System.currentTimeMillis() - savedAt) / 60_000L).coerceAtLeast(0)}m"
+    private fun Throwable.shortLog(): String = "${javaClass.simpleName}: ${message ?: "no message"}".take(160)
 
     private data class CachedQuota(val quota: Quota, val savedAt: Long)
 
@@ -209,6 +332,8 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
         private const val FRESH_WINDOW_MS = 5 * 60 * 1000L
         private const val HARD_CACHE_MS = 30 * 60 * 1000L
         private const val MAX_STALE_MS = 7 * 24 * 60 * 60 * 1000L
+        private const val PRIMARY_WINDOW_MS = 5 * 60 * 60 * 1000L
+        private const val WEEKLY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
     }
 }
 

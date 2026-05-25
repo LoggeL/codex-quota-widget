@@ -33,6 +33,7 @@ object CodexAuth {
     fun isLoggedIn(context: Context): Boolean = loadAuth(context) != null
 
     fun logout(context: Context) {
+        CodexQuotaLog.append(context, "logout")
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()
     }
 
@@ -91,6 +92,7 @@ object CodexAuth {
     }
 
     fun refreshAuth(context: Context, auth: AuthState): AuthState {
+        CodexQuotaLog.append(context, "auth refresh start account=${auth.accountId != null}")
         val body = formEncode(
             "grant_type" to "refresh_token",
             "client_id" to CLIENT_ID,
@@ -104,15 +106,21 @@ object CodexAuth {
         )
         val refreshed = authFromTokenResponse(json, auth.refreshToken)
         saveAuth(context, refreshed)
+        CodexQuotaLog.append(context, "auth refresh success account=${refreshed.accountId != null} plan=${refreshed.planType ?: "-"}")
         return refreshed
     }
 
     fun fetchQuota(context: Context): Quota {
-        val initial = loadAuth(context) ?: error("Login required")
+        val initial = loadAuth(context) ?: run {
+            CodexQuotaLog.append(context, "quota fetch blocked: login required")
+            error("Login required")
+        }
         return try {
-            fetchQuotaWithAuth(initial)
+            CodexQuotaLog.append(context, "quota fetch start account=${initial.accountId != null} plan=${initial.planType ?: "-"}")
+            fetchQuotaWithAuth(context, initial)
         } catch (e: UnauthorizedException) {
-            fetchQuotaWithAuth(refreshAuth(context, initial))
+            CodexQuotaLog.append(context, "quota fetch unauthorized; refreshing token")
+            fetchQuotaWithAuth(context, refreshAuth(context, initial))
         }
     }
 
@@ -173,7 +181,7 @@ object CodexAuth {
             .apply()
     }
 
-    private fun fetchQuotaWithAuth(auth: AuthState): Quota {
+    private fun fetchQuotaWithAuth(context: Context, auth: AuthState): Quota {
         val headers = mutableMapOf("Authorization" to "Bearer ${auth.accessToken}")
         auth.accountId?.let { headers["ChatGPT-Account-Id"] = it }
         if (auth.isFedramp) headers["X-OpenAI-Fedramp"] = "true"
@@ -184,6 +192,7 @@ object CodexAuth {
         )
         if (response.status == 401) throw UnauthorizedException()
         if (response.status !in 200..299) error("Usage HTTP ${response.status}: ${response.body.take(160)}")
+        CodexQuotaLog.append(context, "usage HTTP ${response.status}")
         return parseUsage(JSONObject(response.body), auth.planType ?: "codex")
     }
 

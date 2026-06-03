@@ -221,7 +221,7 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
 
     private fun WindowQuota.estimatedFinalUsedPercent(windowMs: Long): Int? {
         val elapsedPercent = expectedUsedPercent(windowMs)?.takeIf { it > 0 } ?: return null
-        return ((used.toDouble() / elapsedPercent.toDouble()) * 100.0).roundToInt().coerceIn(0, 100)
+        return ((used.toDouble() / elapsedPercent.toDouble()) * 100.0).roundToInt().coerceAtLeast(0)
     }
 
     private fun Int.estimateLabel(estimate: Int?): String =

@@ -12,6 +12,8 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Shader
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import android.widget.RemoteViews
 import org.json.JSONObject
@@ -39,10 +41,17 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
         val manager = AppWidgetManager.getInstance(context)
         val ids = manager.getAppWidgetIds(ComponentName(context, CodexQuotaWidgetProvider::class.java))
         val cached = loadCachedQuota(context)
+        val networkReady = hasValidatedNetwork(context)
         CodexQuotaLog.append(
             context,
-            "fetch start ids=${ids.size} force=$forceRefresh cached=${cached != null} cachedAge=${cached?.ageLabel() ?: "-"}",
+            "fetch start ids=${ids.size} force=$forceRefresh cached=${cached != null} cachedAge=${cached?.ageLabel() ?: "-"} network=$networkReady",
         )
+
+        if (!networkReady && cached != null && !cached.isOlderThan(MAX_STALE_MS)) {
+            CodexQuotaLog.append(context, "network not validated; using stale cache age=${cached.ageLabel()}")
+            ids.forEach { id -> render(context, manager, id, Result.success(cached.quota), cachedAt = cached.savedAt, isStale = true) }
+            return@thread
+        }
 
         // Widget updates are often fired while Android is restoring network/DNS.
         // Prefer the last good quota instead of flashing an empty error state.
@@ -76,6 +85,14 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
             ids.forEach { id -> render(context, manager, id, result, cachedAt = cachedAt, isStale = isStale) }
         }
         CodexQuotaLog.append(context, "render done ids=${ids.size} success=${result.isSuccess} stale=$isStale")
+    }
+
+    private fun hasValidatedNetwork(context: Context): Boolean {
+        val connectivity = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
+        val network = connectivity.activeNetwork ?: return false
+        val caps = connectivity.getNetworkCapabilities(network) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
 
     private fun animateBars(

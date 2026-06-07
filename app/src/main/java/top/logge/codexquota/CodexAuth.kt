@@ -3,6 +3,9 @@ package top.logge.codexquota
 import android.content.Context
 import org.json.JSONObject
 import java.net.HttpURLConnection
+import java.net.InetAddress
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.net.URLEncoder
 import java.net.URL
 import java.util.Locale
@@ -299,9 +302,43 @@ object CodexAuth {
         contentType: String = "application/json",
         headers: Map<String, String> = emptyMap(),
     ): HttpResponse {
-        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 10_000
-            readTimeout = 20_000
+        val targetUrl = URL(url)
+        return rawHttpWithRetry(targetUrl, method, body, contentType, headers)
+    }
+
+    private fun rawHttpWithRetry(
+        targetUrl: URL,
+        method: String,
+        body: String?,
+        contentType: String,
+        headers: Map<String, String>,
+    ): HttpResponse {
+        var lastError: Exception? = null
+        repeat(3) { attempt ->
+            try {
+                return rawHttpOnce(targetUrl, method, body, contentType, headers)
+            } catch (error: UnknownHostException) {
+                lastError = error
+                warmDns(targetUrl.host)
+                Thread.sleep(350L * (attempt + 1))
+            } catch (error: SocketTimeoutException) {
+                lastError = error
+                Thread.sleep(250L * (attempt + 1))
+            }
+        }
+        throw lastError ?: IllegalStateException("HTTP retry failed")
+    }
+
+    private fun rawHttpOnce(
+        targetUrl: URL,
+        method: String,
+        body: String?,
+        contentType: String,
+        headers: Map<String, String>,
+    ): HttpResponse {
+        val conn = (targetUrl.openConnection() as HttpURLConnection).apply {
+            connectTimeout = 15_000
+            readTimeout = 25_000
             requestMethod = method
             setRequestProperty("User-Agent", "codex-quota-widget")
             headers.forEach { (key, value) -> setRequestProperty(key, value) }
@@ -315,6 +352,10 @@ object CodexAuth {
         val stream = if (status in 200..299) conn.inputStream else conn.errorStream
         val text = stream?.bufferedReader()?.use { it.readText() } ?: ""
         return HttpResponse(status, text)
+    }
+
+    private fun warmDns(host: String) {
+        runCatching { InetAddress.getAllByName(host) }
     }
 
     private fun formEncode(vararg pairs: Pair<String, String>) = pairs.joinToString("&") { (key, value) ->

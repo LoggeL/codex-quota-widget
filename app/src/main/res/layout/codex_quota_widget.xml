@@ -82,6 +82,7 @@
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/quota_rows"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_marginStart="10dp"
@@ -89,44 +90,58 @@
         android:gravity="center_vertical"
         android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/primary_text"
+        <LinearLayout
+            android:id="@+id/primary_row"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:includeFontPadding="false"
-            android:maxLines="1"
-            android:text="5h —"
-            android:textColor="@color/widget_text"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:layout_marginBottom="7dp"
+            android:orientation="vertical">
 
-        <ImageView
-            android:id="@+id/primary_bar"
-            android:layout_width="match_parent"
-            android:layout_height="8dp"
-            android:layout_marginTop="4dp"
-            android:contentDescription="Primary usage bar"
-            android:scaleType="fitXY" />
+            <TextView
+                android:id="@+id/primary_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="5h —"
+                android:textColor="@color/widget_text"
+                android:textSize="12sp"
+                android:textStyle="bold" />
 
-        <TextView
-            android:id="@+id/weekly_text"
+            <ImageView
+                android:id="@+id/primary_bar"
+                android:layout_width="match_parent"
+                android:layout_height="8dp"
+                android:layout_marginTop="4dp"
+                android:contentDescription="Primary usage bar"
+                android:scaleType="fitXY" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/weekly_row"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="7dp"
-            android:includeFontPadding="false"
-            android:maxLines="1"
-            android:text="W —"
-            android:textColor="@color/widget_text"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:orientation="vertical">
 
-        <ImageView
-            android:id="@+id/weekly_bar"
-            android:layout_width="match_parent"
-            android:layout_height="8dp"
-            android:layout_marginTop="4dp"
-            android:contentDescription="Weekly usage bar"
-            android:scaleType="fitXY" />
+            <TextView
+                android:id="@+id/weekly_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="W —"
+                android:textColor="@color/widget_text"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:id="@+id/weekly_bar"
+                android:layout_width="match_parent"
+                android:layout_height="8dp"
+                android:layout_marginTop="4dp"
+                android:contentDescription="Weekly usage bar"
+                android:scaleType="fitXY" />
+        </LinearLayout>
     </LinearLayout>
 
     <TextView

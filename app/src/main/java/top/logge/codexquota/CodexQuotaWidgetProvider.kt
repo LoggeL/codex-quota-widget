@@ -144,34 +144,52 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
         cachedAt: Long? = null,
         isStale: Boolean = false,
     ) {
-        val views = baseViews(context)
-        result.onSuccess { quota ->
-            val liveLabel = when {
-                isAnimating -> "animating"
-                isStale -> "cached quota"
-                else -> "live quota"
-            }
-            val footer = if (isStale && cachedAt != null) "cache ${formatTime(cachedAt)}\ntap" else "upd ${formatTime()}\ntap"
-            val presentation = QuotaPresentation.fromQuota(quota, liveLabel)
-            views.setTextViewText(R.id.plan, QuotaPresentation.planLabel(quota.plan))
-            views.setTextViewText(R.id.live_text, presentation.liveText)
-            views.setTextViewText(R.id.primary_text, presentation.primary.text)
-            views.setViewVisibility(R.id.primary_bar, if (presentation.primary.available) View.VISIBLE else View.INVISIBLE)
-            views.setImageViewBitmap(R.id.primary_bar, usageBarBitmap(presentation.primary.used, presentation.primary.estimate, BarPalette.Primary))
-            views.setTextViewText(R.id.weekly_text, presentation.weekly.text)
-            views.setViewVisibility(R.id.weekly_bar, if (presentation.weekly.available) View.VISIBLE else View.INVISIBLE)
-            views.setImageViewBitmap(R.id.weekly_bar, usageBarBitmap(presentation.weekly.used, presentation.weekly.estimate, BarPalette.Weekly))
-            views.setTextViewText(R.id.footer, footer)
-        }.onFailure { error ->
-            views.setTextViewText(R.id.plan, "ERR")
-            views.setTextViewText(R.id.live_text, "offline")
-            views.setTextViewText(R.id.primary_text, "Quota unavailable")
-            views.setImageViewBitmap(R.id.primary_bar, usageBarBitmap(0, null, BarPalette.Primary))
-            views.setTextViewText(R.id.weekly_text, error.message?.take(24) ?: "Check endpoint")
-            views.setImageViewBitmap(R.id.weekly_bar, usageBarBitmap(0, null, BarPalette.Weekly))
-            views.setTextViewText(R.id.footer, "tap\nretry")
-        }
+        val views = result.fold(
+            onSuccess = { quota ->
+                val liveLabel = when {
+                    isAnimating -> "animating"
+                    isStale -> "cached quota"
+                    else -> "live quota"
+                }
+                val footer = if (isStale && cachedAt != null) "cache ${formatTime(cachedAt)}\ntap" else "upd ${formatTime()}\ntap"
+                buildQuotaViews(context, quota, liveLabel, footer)
+            },
+            onFailure = { error ->
+                baseViews(context).apply {
+                    setTextViewText(R.id.plan, "ERR")
+                    setTextViewText(R.id.live_text, "offline")
+                    setTextViewText(R.id.primary_text, "Quota unavailable")
+                    setImageViewBitmap(R.id.primary_bar, usageBarBitmap(0, null, BarPalette.Primary))
+                    setTextViewText(R.id.weekly_text, error.message?.take(24) ?: "Check endpoint")
+                    setImageViewBitmap(R.id.weekly_bar, usageBarBitmap(0, null, BarPalette.Weekly))
+                    setTextViewText(R.id.footer, "tap\nretry")
+                }
+            },
+        )
         manager.updateAppWidget(id, views)
+    }
+
+    internal fun buildQuotaViews(
+        context: Context,
+        quota: Quota,
+        liveLabel: String = "live quota",
+        footer: String = "tap\nrefresh",
+    ): RemoteViews {
+        val presentation = QuotaPresentation.fromQuota(quota, liveLabel)
+        val weeklyOnly = !presentation.primary.available && presentation.weekly.available
+        return baseViews(context).apply {
+            setTextViewText(R.id.plan, QuotaPresentation.planLabel(quota.plan))
+            setTextViewText(R.id.live_text, presentation.liveText)
+            setViewVisibility(R.id.primary_row, if (weeklyOnly) View.GONE else View.VISIBLE)
+            setTextViewText(R.id.primary_text, presentation.primary.text)
+            setViewVisibility(R.id.primary_bar, if (presentation.primary.available) View.VISIBLE else View.INVISIBLE)
+            setImageViewBitmap(R.id.primary_bar, usageBarBitmap(presentation.primary.used, presentation.primary.estimate, BarPalette.Primary))
+            setViewVisibility(R.id.weekly_row, View.VISIBLE)
+            setTextViewText(R.id.weekly_text, presentation.weekly.text)
+            setViewVisibility(R.id.weekly_bar, if (presentation.weekly.available) View.VISIBLE else View.INVISIBLE)
+            setImageViewBitmap(R.id.weekly_bar, usageBarBitmap(presentation.weekly.used, presentation.weekly.estimate, BarPalette.Weekly))
+            setTextViewText(R.id.footer, footer)
+        }
     }
 
     private fun baseViews(context: Context): RemoteViews {
@@ -180,6 +198,10 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
         val flags = if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
         val pending = PendingIntent.getBroadcast(context, 0, intent, flags)
         views.setOnClickPendingIntent(R.id.widget_root, pending)
+        views.setViewVisibility(R.id.primary_row, View.VISIBLE)
+        views.setViewVisibility(R.id.primary_bar, View.VISIBLE)
+        views.setViewVisibility(R.id.weekly_row, View.VISIBLE)
+        views.setViewVisibility(R.id.weekly_bar, View.VISIBLE)
         return views
     }
 

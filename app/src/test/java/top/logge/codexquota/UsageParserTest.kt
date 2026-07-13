@@ -78,6 +78,83 @@ class UsageParserTest {
     }
 
     @Test
+    fun codexAppServerWeeklyOnlyPrimaryKeyClassifiesByWindowDuration() {
+        val quota = UsageParser.parseUsage(
+            JSONObject(
+                """
+                {
+                  "updatedAt": "2026-07-13T08:21:45.427Z",
+                  "planType": "pro",
+                  "primary": {
+                    "usedPercent": 18,
+                    "windowDurationMins": 10080,
+                    "resetsAt": 1784487540,
+                    "resetsIn": "6d 10h"
+                  },
+                  "secondary": null,
+                  "credits": {
+                    "hasCredits": false,
+                    "unlimited": false,
+                    "balance": "0"
+                  }
+                }
+                """.trimIndent(),
+            ),
+            planType = "codex",
+        )
+
+        assertEquals("pro", quota.plan)
+        assertNull(quota.primary)
+        assertEquals(WindowQuota(18, "6d 10h"), quota.weekly)
+
+        val presentation = QuotaPresentation.fromQuota(quota, "live quota")
+        assertFalse(presentation.primary.available)
+        assertEquals("5h unavailable", presentation.primary.text)
+        assertTrue(presentation.weekly.available)
+        assertTrue(presentation.weekly.text.startsWith("W 18→"))
+        assertTrue(presentation.weekly.text.endsWith("% · rem 6d 10h"))
+    }
+
+    @Test
+    fun ambiguousPrimaryWithMultiDayResetClassifiesAsWeeklyByResetSemantics() {
+        val quota = UsageParser.parseUsage(
+            JSONObject(
+                """
+                {
+                  "rateLimits": {
+                    "primary": { "usedPercent": 22, "resetsIn": "5d 2h" }
+                  },
+                  "planType": "pro"
+                }
+                """.trimIndent(),
+            ),
+            planType = "codex",
+        )
+
+        assertNull(quota.primary)
+        assertEquals(WindowQuota(22, "5d 2h"), quota.weekly)
+    }
+
+    @Test
+    fun appServerBothWindowsClassifyByDurationsDespitePrimarySecondaryNames() {
+        val quota = UsageParser.parseUsage(
+            JSONObject(
+                """
+                {
+                  "planType": "pro",
+                  "primary": { "usedPercent": 18, "windowDurationMins": 10080, "resetsIn": "6d 10h" },
+                  "secondary": { "usedPercent": 42, "windowDurationMins": 300, "resetsIn": "2h 30m" }
+                }
+                """.trimIndent(),
+            ),
+            planType = "codex",
+        )
+
+        assertEquals(WindowQuota(42, "2h 30m"), quota.primary)
+        assertEquals(WindowQuota(18, "6d 10h"), quota.weekly)
+    }
+
+    @Test
     fun malformedWindowPayloadDoesNotFabricateUsage() {
         val quota = UsageParser.parseUsage(
             JSONObject(

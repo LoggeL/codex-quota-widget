@@ -16,8 +16,8 @@ class UsageParserTest {
                 {
                   "plan_type": "plus",
                   "rate_limit": {
-                    "primary_window": { "used_percent": 40, "resets_in": "2h 30m" },
-                    "secondary_window": { "used_percent": 75, "resets_in": "5d 1h" }
+                    "primary_window": { "used_percent": 42, "resets_in": "2h 30m" },
+                    "secondary_window": { "used_percent": 61, "resets_in": "2d 0h" }
                   },
                   "credits": { "balance": "12" }
                 }
@@ -27,15 +27,20 @@ class UsageParserTest {
         )
 
         assertEquals("plus", quota.plan)
-        assertEquals(WindowQuota(40, "2h 30m"), quota.primary)
-        assertEquals(WindowQuota(75, "5d 1h"), quota.weekly)
+        assertEquals(WindowQuota(42, "2h 30m"), quota.primary)
+        assertEquals(WindowQuota(61, "2d 0h"), quota.weekly)
         assertEquals("12", quota.creditsBalance)
 
         val presentation = QuotaPresentation.fromQuota(quota, "live quota")
         assertTrue(presentation.primary.available)
-        assertTrue(presentation.primary.text.startsWith("5h 40"))
+        assertEquals(50, presentation.primary.expected)
+        assertEquals(84, presentation.primary.estimate)
+        assertEquals("5h 42→84% · rem 2h 30m", presentation.primary.text)
         assertTrue(presentation.weekly.available)
-        assertTrue(presentation.weekly.text.startsWith("W 75"))
+        assertEquals(71, presentation.weekly.expected)
+        assertEquals(86, presentation.weekly.estimate)
+        assertEquals("W 61→86% · rem 2d 0h", presentation.weekly.text)
+        assertEquals("on track", presentation.liveText)
     }
 
     @Test
@@ -45,7 +50,7 @@ class UsageParserTest {
                 """
                 {
                   "rate_limit": {
-                    "secondary_window": { "usedPercent": 61, "resetAfterSeconds": 345600 }
+                    "secondary_window": { "usedPercent": 35, "resets_in": "3d 4h" }
                   }
                 }
                 """.trimIndent(),
@@ -55,20 +60,38 @@ class UsageParserTest {
 
         assertEquals("pro", quota.plan)
         assertNull(quota.primary)
-        assertEquals(61, quota.weekly?.used)
-        assertEquals("4d 0h", quota.weekly?.reset)
+        assertEquals(WindowQuota(35, "3d 4h"), quota.weekly)
 
         val presentation = QuotaPresentation.fromQuota(quota, "live quota")
         assertFalse(presentation.primary.available)
         assertEquals("5h unavailable", presentation.primary.text)
         assertEquals(0, presentation.primary.used)
+        assertNull(presentation.primary.expected)
+        assertNull(presentation.primary.estimate)
         assertTrue(presentation.weekly.available)
-        assertTrue(presentation.weekly.text.startsWith("W 61"))
+        assertEquals(55, presentation.weekly.expected)
+        assertEquals(64, presentation.weekly.estimate)
+        assertEquals("W 35→64% · rem 3d 4h", presentation.weekly.text)
+        assertEquals("ahead", presentation.liveText)
+        assertFalse(presentation.primary.text.contains("35"))
+        assertFalse(presentation.primary.text.contains("3d 4h"))
     }
 
     @Test
-    fun malformedOrNoWindowPayloadDoesNotCrashAndRendersUnavailableWindows() {
-        val quota = UsageParser.parseUsage(JSONObject("""{ "rate_limit": { "primary_window": null }, "credits": {} }"""), "codex")
+    fun malformedWindowPayloadDoesNotFabricateUsage() {
+        val quota = UsageParser.parseUsage(
+            JSONObject(
+                """
+                {
+                  "rate_limit": {
+                    "primary_window": [],
+                    "secondary_window": { "used_percent": "not-a-number", "resets_in": {} }
+                  }
+                }
+                """.trimIndent(),
+            ),
+            "codex",
+        )
 
         assertNull(quota.primary)
         assertNull(quota.weekly)
@@ -79,5 +102,20 @@ class UsageParserTest {
         assertEquals("5h unavailable", presentation.primary.text)
         assertFalse(presentation.weekly.available)
         assertEquals("W unavailable", presentation.weekly.text)
+    }
+
+    @Test
+    fun noWindowPayloadDoesNotCrashAndRendersUnavailableWindows() {
+        val quota = UsageParser.parseUsage(JSONObject("""{ "rate_limit": {}, "credits": {} }"""), "codex")
+
+        assertNull(quota.primary)
+        assertNull(quota.weekly)
+
+        val presentation = QuotaPresentation.fromQuota(quota, "live quota")
+        assertEquals("live quota", presentation.liveText)
+        assertEquals("5h unavailable", presentation.primary.text)
+        assertFalse(presentation.primary.available)
+        assertEquals("W unavailable", presentation.weekly.text)
+        assertFalse(presentation.weekly.available)
     }
 }

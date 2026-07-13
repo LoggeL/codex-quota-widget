@@ -15,6 +15,7 @@ import android.graphics.Shader
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
+import android.view.View
 import android.widget.RemoteViews
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -155,8 +156,10 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.plan, QuotaPresentation.planLabel(quota.plan))
             views.setTextViewText(R.id.live_text, presentation.liveText)
             views.setTextViewText(R.id.primary_text, presentation.primary.text)
+            views.setViewVisibility(R.id.primary_bar, if (presentation.primary.available) View.VISIBLE else View.INVISIBLE)
             views.setImageViewBitmap(R.id.primary_bar, usageBarBitmap(presentation.primary.used, presentation.primary.estimate, BarPalette.Primary))
             views.setTextViewText(R.id.weekly_text, presentation.weekly.text)
+            views.setViewVisibility(R.id.weekly_bar, if (presentation.weekly.available) View.VISIBLE else View.INVISIBLE)
             views.setImageViewBitmap(R.id.weekly_bar, usageBarBitmap(presentation.weekly.used, presentation.weekly.estimate, BarPalette.Weekly))
             views.setTextViewText(R.id.footer, footer)
         }.onFailure { error ->
@@ -232,37 +235,15 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
         val prefs = context.getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE)
         val json = prefs.getString("quota_json", null) ?: return null
         val savedAt = prefs.getLong("saved_at", 0L).takeIf { it > 0L } ?: return null
-        return runCatching { CachedQuota(quotaFromJson(JSONObject(json)), savedAt) }.getOrNull()
+        return runCatching { CachedQuota(QuotaCacheCodec.decode(JSONObject(json)), savedAt) }.getOrNull()
     }
 
     private fun saveCachedQuota(context: Context, quota: Quota) {
         context.getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE).edit()
-            .putString("quota_json", quota.toJson().toString())
+            .putString("quota_json", QuotaCacheCodec.encode(quota).toString())
             .putLong("saved_at", System.currentTimeMillis())
             .apply()
     }
-
-    private fun Quota.toJson(): JSONObject = JSONObject()
-        .put("plan", plan)
-        .apply { primary?.let { put("primary", it.toJson()) } }
-        .apply { weekly?.let { put("weekly", it.toJson()) } }
-        .put("creditsBalance", creditsBalance)
-
-    private fun WindowQuota.toJson(): JSONObject = JSONObject()
-        .put("used", used)
-        .put("reset", reset)
-
-    private fun quotaFromJson(json: JSONObject): Quota = Quota(
-        plan = json.optString("plan", "codex"),
-        primary = json.optJSONObject("primary")?.windowQuotaFromJson(),
-        weekly = json.optJSONObject("weekly")?.windowQuotaFromJson(),
-        creditsBalance = json.optString("creditsBalance").ifBlank { null },
-    )
-
-    private fun JSONObject.windowQuotaFromJson(): WindowQuota = WindowQuota(
-        used = optInt("used", 0).coerceIn(0, 100),
-        reset = optString("reset", "?"),
-    )
 
     private fun CachedQuota.isOlderThan(maxAgeMs: Long): Boolean = System.currentTimeMillis() - savedAt > maxAgeMs
     private fun CachedQuota.ageLabel(): String = "${((System.currentTimeMillis() - savedAt) / 60_000L).coerceAtLeast(0)}m"

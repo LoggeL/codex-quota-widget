@@ -21,13 +21,13 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.concurrent.thread
-import kotlin.math.max
 import kotlin.math.roundToInt
 
 class CodexQuotaWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         CodexQuotaLog.append(context, "widget onUpdate ids=${ids.size}")
         ids.forEach { renderLoading(context, manager, it) }
+
         fetchAndRender(context.applicationContext, animate = true, forceRefresh = false)
     }
 
@@ -63,7 +63,7 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
         val result = runCatching { CodexAuth.fetchQuota(context) }
             .onSuccess {
                 saveCachedQuota(context, it)
-                CodexQuotaLog.append(context, "fetch success plan=${it.plan} primary=${it.primary.used}% weekly=${it.weekly.used}%")
+                CodexQuotaLog.append(context, "fetch success plan=${it.plan} primary=${it.primary?.used?.let { used -> "$used%" } ?: "unavailable"} weekly=${it.weekly?.used?.let { used -> "$used%" } ?: "unavailable"}")
             }
             .recoverCatching { error ->
                 val fallback = cached?.takeUnless { it.isOlderThan(MAX_STALE_MS) }
@@ -103,13 +103,13 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
         cachedAt: Long? = null,
         isStale: Boolean = false,
     ) {
-        val primaryTarget = quota.primary.used.coerceIn(0, 100)
-        val weeklyTarget = quota.weekly.used.coerceIn(0, 100)
+        val primaryTarget = quota.primary?.used?.coerceIn(0, 100) ?: 0
+        val weeklyTarget = quota.weekly?.used?.coerceIn(0, 100) ?: 0
         val steps = listOf(0.18, 0.42, 0.68, 0.86, 1.0)
         steps.forEachIndexed { index, fraction ->
             val animated = quota.copy(
-                primary = quota.primary.copy(used = max(1, (primaryTarget * fraction).roundToInt()).coerceAtMost(primaryTarget)),
-                weekly = quota.weekly.copy(used = max(1, (weeklyTarget * fraction).roundToInt()).coerceAtMost(weeklyTarget)),
+                primary = quota.primary?.copy(used = animatedValue(primaryTarget, fraction)),
+                weekly = quota.weekly?.copy(used = animatedValue(weeklyTarget, fraction)),
             )
             ids.forEach { id -> render(context, manager, id, Result.success(animated), isAnimating = index < steps.lastIndex, cachedAt = cachedAt, isStale = isStale) }
             if (index < steps.lastIndex) Thread.sleep(130)
@@ -151,16 +151,13 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
                 else -> "live quota"
             }
             val footer = if (isStale && cachedAt != null) "cache ${formatTime(cachedAt)}\ntap" else "upd ${formatTime()}\ntap"
-            val primaryPace = quota.primary.expectedUsedPercent(PRIMARY_WINDOW_MS)
-            val weeklyPace = quota.weekly.expectedUsedPercent(WEEKLY_WINDOW_MS)
-            val primaryEstimate = quota.primary.estimatedFinalUsedPercent(PRIMARY_WINDOW_MS)
-            val weeklyEstimate = quota.weekly.estimatedFinalUsedPercent(WEEKLY_WINDOW_MS)
-            views.setTextViewText(R.id.plan, quota.plan.widgetPlanLabel())
-            views.setTextViewText(R.id.live_text, quota.paceLabel(liveLabel, primaryPace, weeklyPace))
-            views.setTextViewText(R.id.primary_text, "5h ${quota.primary.used.estimateLabel(primaryEstimate)} · ${quota.primary.reset.remainingLabel()}")
-            views.setImageViewBitmap(R.id.primary_bar, usageBarBitmap(quota.primary.used, primaryEstimate, BarPalette.Primary))
-            views.setTextViewText(R.id.weekly_text, "W ${quota.weekly.used.estimateLabel(weeklyEstimate)} · ${quota.weekly.reset.remainingLabel()}")
-            views.setImageViewBitmap(R.id.weekly_bar, usageBarBitmap(quota.weekly.used, weeklyEstimate, BarPalette.Weekly))
+            val presentation = QuotaPresentation.fromQuota(quota, liveLabel)
+            views.setTextViewText(R.id.plan, QuotaPresentation.planLabel(quota.plan))
+            views.setTextViewText(R.id.live_text, presentation.liveText)
+            views.setTextViewText(R.id.primary_text, presentation.primary.text)
+            views.setImageViewBitmap(R.id.primary_bar, usageBarBitmap(presentation.primary.used, presentation.primary.estimate, BarPalette.Primary))
+            views.setTextViewText(R.id.weekly_text, presentation.weekly.text)
+            views.setImageViewBitmap(R.id.weekly_bar, usageBarBitmap(presentation.weekly.used, presentation.weekly.estimate, BarPalette.Weekly))
             views.setTextViewText(R.id.footer, footer)
         }.onFailure { error ->
             views.setTextViewText(R.id.plan, "ERR")
@@ -225,78 +222,8 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
         Weekly(Color.rgb(52, 211, 153), Color.rgb(250, 204, 21), Color.rgb(251, 113, 133)),
     }
 
-    private fun String.remainingLabel(): String {
-        val trimmed = trim()
-        return if (trimmed.isBlank() || trimmed == "?") "rem ?" else "rem $trimmed"
-    }
-
-    private fun WindowQuota.expectedUsedPercent(windowMs: Long): Int? {
-        val remainingMs = reset.parseDurationMs() ?: return null
-        val elapsedMs = (windowMs - remainingMs).coerceIn(0L, windowMs)
-        return ((elapsedMs.toDouble() / windowMs.toDouble()) * 100.0).roundToInt().coerceIn(0, 100)
-    }
-
-    private fun WindowQuota.estimatedFinalUsedPercent(windowMs: Long): Int? {
-        val elapsedPercent = expectedUsedPercent(windowMs)?.takeIf { it > 0 } ?: return null
-        return ((used.toDouble() / elapsedPercent.toDouble()) * 100.0).roundToInt().coerceAtLeast(0)
-    }
-
-    private fun Int.estimateLabel(estimate: Int?): String =
-        if (estimate == null) "$this%" else "$this→$estimate%"
-
-    private fun Quota.paceLabel(fallback: String, primaryExpected: Int?, weeklyExpected: Int?): String {
-        if (primaryExpected == null && weeklyExpected == null) return fallback
-        val primaryDelta = primaryExpected?.let { primary.used - it } ?: Int.MIN_VALUE
-        val weeklyDelta = weeklyExpected?.let { weekly.used - it } ?: Int.MIN_VALUE
-        val worstDelta = max(primaryDelta, weeklyDelta)
-        return when {
-            worstDelta >= 15 -> "over pace"
-            worstDelta >= 7 -> "watch pace"
-            worstDelta <= -20 -> "ahead"
-            else -> "on track"
-        }
-    }
-
-    private fun String.parseDurationMs(): Long? {
-        val normalized = trim().lowercase(Locale.ROOT)
-        if (normalized.isBlank() || normalized == "?") return null
-
-        var totalMinutes = 0L
-        Regex("""(\d+)\s*([dhm])""").findAll(normalized).forEach { match ->
-            val value = match.groupValues[1].toLongOrNull() ?: return@forEach
-            totalMinutes += when (match.groupValues[2]) {
-                "d" -> value * 24L * 60L
-                "h" -> value * 60L
-                else -> value
-            }
-        }
-        if (totalMinutes > 0L) return totalMinutes * 60_000L
-
-        val colonParts = normalized.split(":")
-        if (colonParts.size == 2) {
-            val hours = colonParts[0].toLongOrNull()
-            val minutes = colonParts[1].toLongOrNull()
-            if (hours != null && minutes != null) return (hours * 60L + minutes) * 60_000L
-        }
-
-        return normalized.toLongOrNull()?.let { it.coerceAtLeast(0L) * 60_000L }
-    }
-
-    private fun String.widgetPlanLabel(): String {
-        val normalized = lowercase(Locale.ROOT).replace("-", "_").replace(" ", "_")
-        return when {
-            normalized.isBlank() -> "CODEX"
-            normalized.contains("pro_lit") || normalized.contains("prolit") -> "PRO"
-            normalized.contains("pro") -> "PRO"
-            normalized.contains("plus") -> "PLUS"
-            normalized.contains("team") -> "TEAM"
-            normalized.contains("business") -> "BIZ"
-            normalized.contains("enterprise") -> "ENT"
-            normalized.contains("edu") -> "EDU"
-            normalized.contains("free") -> "FREE"
-            else -> "CODEX"
-        }
-    }
+    private fun animatedValue(target: Int, fraction: Double): Int =
+        if (target <= 0) 0 else kotlin.math.max(1, (target * fraction).roundToInt()).coerceAtMost(target)
 
     private fun formatTime(timestamp: Long = System.currentTimeMillis()): String =
         SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date(timestamp))
@@ -317,8 +244,8 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
 
     private fun Quota.toJson(): JSONObject = JSONObject()
         .put("plan", plan)
-        .put("primary", primary.toJson())
-        .put("weekly", weekly.toJson())
+        .apply { primary?.let { put("primary", it.toJson()) } }
+        .apply { weekly?.let { put("weekly", it.toJson()) } }
         .put("creditsBalance", creditsBalance)
 
     private fun WindowQuota.toJson(): JSONObject = JSONObject()
@@ -327,8 +254,8 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
 
     private fun quotaFromJson(json: JSONObject): Quota = Quota(
         plan = json.optString("plan", "codex"),
-        primary = json.optJSONObject("primary")?.windowQuotaFromJson() ?: WindowQuota(0, "?"),
-        weekly = json.optJSONObject("weekly")?.windowQuotaFromJson() ?: WindowQuota(0, "?"),
+        primary = json.optJSONObject("primary")?.windowQuotaFromJson(),
+        weekly = json.optJSONObject("weekly")?.windowQuotaFromJson(),
         creditsBalance = json.optString("creditsBalance").ifBlank { null },
     )
 
@@ -349,15 +276,5 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
         private const val FRESH_WINDOW_MS = 5 * 60 * 1000L
         private const val HARD_CACHE_MS = 30 * 60 * 1000L
         private const val MAX_STALE_MS = 7 * 24 * 60 * 60 * 1000L
-        private const val PRIMARY_WINDOW_MS = 5 * 60 * 60 * 1000L
-        private const val WEEKLY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
     }
 }
-
-data class WindowQuota(val used: Int, val reset: String)
-data class Quota(
-    val plan: String,
-    val primary: WindowQuota,
-    val weekly: WindowQuota,
-    val creditsBalance: String? = null,
-)

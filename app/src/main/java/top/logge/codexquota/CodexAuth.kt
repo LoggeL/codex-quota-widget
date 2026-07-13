@@ -8,7 +8,6 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.net.URLEncoder
 import java.net.URL
-import java.util.Locale
 import kotlin.math.max
 
 object CodexAuth {
@@ -196,92 +195,12 @@ object CodexAuth {
         if (response.status == 401) throw UnauthorizedException()
         if (response.status !in 200..299) error("Usage HTTP ${response.status}: ${response.body.take(160)}")
         CodexQuotaLog.append(context, "usage HTTP ${response.status}")
-        return parseUsage(JSONObject(response.body), auth.planType ?: "codex")
+        val quota = parseUsage(JSONObject(response.body), auth.planType ?: "codex")
+        check(quota.primary != null || quota.weekly != null) { "Usage response missing quota windows" }
+        return quota
     }
 
-    private fun parseUsage(json: JSONObject, planType: String): Quota {
-        val rateLimit = json.optJSONObject("rate_limit")
-            ?: json.optJSONObject("rateLimit")
-            ?: json.optJSONObject("rate_limit_status")
-            ?: json.optJSONObject("rateLimitStatus")
-            ?: json.optJSONObject("usage")
-            ?: JSONObject()
-        val primary = rateLimit.optJSONObject("primary_window")
-            ?: rateLimit.optJSONObject("primaryWindow")
-            ?: rateLimit.optJSONObject("primary")
-            ?: JSONObject()
-        val secondary = rateLimit.optJSONObject("secondary_window")
-            ?: rateLimit.optJSONObject("secondaryWindow")
-            ?: rateLimit.optJSONObject("secondary")
-            ?: JSONObject()
-        val credits = json.optJSONObject("credits")
-        return Quota(
-            plan = json.optString("plan_type", planType),
-            primary = primary.window(),
-            weekly = secondary.window(),
-            creditsBalance = credits?.optString("balance")?.ifBlank { null },
-        )
-    }
-
-    private fun JSONObject.window(): WindowQuota = WindowQuota(
-        used = optDouble("used_percent", optDouble("usedPercent", 0.0)).toInt().coerceIn(0, 100),
-        reset = remainingTimeLabel(),
-    )
-
-    private fun JSONObject.remainingTimeLabel(): String {
-        firstNonBlank(
-            "resets_in",
-            "resetsIn",
-            "reset_in",
-            "resetIn",
-            "remaining_time",
-            "remainingTime",
-            "time_remaining",
-            "timeRemaining",
-        )?.let { return it }
-
-        firstPositiveLong("reset_after_seconds", "resetAfterSeconds", "reset_after", "resetAfter")
-            ?.let { return fmtDurationMins((it / 60L).coerceAtLeast(0)) }
-
-        firstPositiveLong("resets_at", "resetsAt", "reset_at", "resetAt")
-            ?.let { return fmtResetsAt(it) }
-
-        return "?"
-    }
-
-    private fun JSONObject.firstNonBlank(vararg keys: String): String? {
-        for (key in keys) {
-            val value = optString(key, "").trim()
-            if (value.isNotBlank() && value != "null") return value
-        }
-        return null
-    }
-
-    private fun JSONObject.firstPositiveLong(vararg keys: String): Long? {
-        for (key in keys) {
-            if (!has(key)) continue
-            val value = optLong(key, 0L)
-            if (value > 0L) return value
-        }
-        return null
-    }
-
-    private fun fmtResetsAt(timestamp: Long): String {
-        if (timestamp <= 0) return "?"
-        val millis = if (timestamp > 10_000_000_000L) timestamp else timestamp * 1000L
-        val mins = ((millis - System.currentTimeMillis()) / 60_000L).coerceAtLeast(0)
-        return fmtDurationMins(mins)
-    }
-
-    private fun fmtDurationMins(mins: Long): String {
-        val hours = mins / 60
-        val days = hours / 24
-        return when {
-            days > 0 -> "${days}d ${hours % 24}h"
-            hours > 0 -> "${hours}h ${mins % 60}m"
-            else -> "${mins}m"
-        }
-    }
+    internal fun parseUsage(json: JSONObject, planType: String): Quota = UsageParser.parseUsage(json, planType)
 
     private fun decodeJwtPayload(jwt: String): JSONObject? = runCatching {
         val payload = jwt.split('.')[1]

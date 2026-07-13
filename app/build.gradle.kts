@@ -22,3 +22,8 @@ android {
         versionName = "0.3.0"
     }
 }
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20250517")
+}

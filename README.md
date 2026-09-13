@@ -1,103 +1,78 @@
 # Codex Quota Widget
 
-A tiny Android home-screen widget for keeping an eye on Codex / ChatGPT usage limits.
+An Android app and home-screen widget for viewing the remaining Codex quota of multiple ChatGPT accounts. Each account has its own bars, reset times, cached data and login. Percentages are never added across accounts.
 
-It signs in with the same ChatGPT-managed Codex device-code flow used by the Codex CLI, stores tokens locally on the device, and reads the quota directly from the ChatGPT backend API.
+[Download the latest APK](https://github.com/LoggeL/codex-quota-widget/releases/latest)
 
-## Features
+![Two independent account quotas, illustrated with test data](docs/widget-preview.png)
 
-- Android home-screen widget, optimized for a compact 4x1 layout
-- One-time Codex / ChatGPT device-code login
-- Shows short-window usage, estimated final usage, weekly usage, and remaining reset time
-- Tap the widget to refresh immediately
-- In-app widget log for refresh/auth/network debugging
-- Aggressive stale-cache fallback so transient DNS/network failures keep showing the last good quota instead of an empty error
-- Periodic refresh through Android's normal app-widget update flow
-- Local token storage with refresh-token support
-- No hosted quota proxy required
+## Version 1.0
 
-## Screens / labels
+- Account cards in the app and widget, with remaining quota and separate reset times.
+- Add, rename and remove accounts. Signing in to the same account again renews its login instead of creating a duplicate.
+- Weekly-only accounts display just their weekly window. Two accounts fit in a 4x2 widget; enlarge it if your accounts have both windows or if you use larger text.
+- The widget displays the first two accounts and links to any additional accounts in the app.
+- Per-account cache and errors: one expired login does not hide the other account.
+- Device login continues while the browser is open and resumes after process recreation, until its 15-minute deadline. It can be cancelled.
+- Android Keystore encryption for credentials, cached quota and pending login; cloud backup and device transfer are excluded.
+- Android-managed background refresh, approximately every 30 minutes. Android can defer jobs to conserve battery. Tap ↻ for a refresh or the widget body to open the app.
+- Reset countdowns use persisted absolute timestamps. Expired snapshots show the last known percentage and request an update; they never assume that quota has refilled.
 
-The widget displays:
+### Installing over 0.4.0
 
-- plan badge, e.g. `PRO`, `PLUS`, `TEAM`
-- short quota window, e.g. `5h 42→58% · rem 1h 23m` where the second number is estimated usage at reset
-- weekly quota window, e.g. `W 23→64% · rem 4d 12h`
-- actual-usage bars, with estimated final usage shown in the text label
-- pace label, e.g. `on track`, `watch pace`, `over pace`, or `ahead`
-- last update timestamp, or cached timestamp if the last refresh fell back to stale data
+The published 0.4.0 APK used a different signing certificate, whose private key is unavailable in this checkout. The 1.0.0 distribution uses the retained local signing key documented below. Android cannot install it over that 0.4.0 APK. Uninstall the old widget app, install 1.0.0, connect your accounts again and add the new widget. Uninstalling removes the old app's local login.
 
-## Build
+For installations signed with the same certificate, the app migrates the previous single-account login and cache into its encrypted store automatically. Migration writes the encrypted data before deleting the old plaintext preferences.
 
-Requirements:
+## Connect your accounts
 
-- JDK 17
-- Android SDK
-- Gradle wrapper from this repo
+1. Open Codex Quota and tap `Account hinzufügen`.
+2. Copy the displayed code and open the login page with the provided button.
+3. Select the intended ChatGPT account in the browser and approve its Codex device login. If needed, enable device-code login in the account's security settings.
+4. Return to the app. Repeat for the second account, switching to that account in the browser first.
+5. Rename the cards, for example `Privat` and `Arbeit`, and add the widget.
 
-Build a debug APK:
+The Android app is independent of desktop account switchers. Signing in to the same accounts gives it their account-wide quotas without switching or restarting the desktop app. No desktop credentials, account IDs or personal data are included in the APK.
 
-```bash
-./gradlew :app:assembleDebug
+The app uses the ChatGPT-managed Codex device-code flow and the ChatGPT usage endpoint. This is an unofficial client; upstream authentication and response formats may change. There is no hosted quota proxy. Percentages describe each account's own limit, not a comparable number of tokens or money.
+
+## Build and test
+
+Requirements: JDK 17 or newer, Android SDK 35, Python 3 for packaging.
+
+```sh
+./gradlew testDebugUnitTest lintDebug assembleDebug
+./gradlew assembleDebugAndroidTest
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb shell am instrument -w top.logge.codexquota.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
-APK output:
+Run device tests only on a test device: they replace this app's account store with invented fixtures and clear it afterward. They exercise real Keystore encryption, single-account migration and Android rendering. Device screenshots use invented `Privat` and `Arbeit` accounts.
 
-```text
-app/build/outputs/apk/debug/app-debug.apk
+## Release packaging
+
+Provide `ANDROID_HOME`, `JAVA_HOME`, `CODEX_WIDGET_KEYSTORE`, `CODEX_WIDGET_STORE_PASSWORD`, `CODEX_WIDGET_KEY_ALIAS` and `CODEX_WIDGET_KEY_PASSWORD` through the environment, then run:
+
+```sh
+python3 scripts/package_release.py
 ```
 
-## Install / use
+The script runs unit tests and release lint, builds a non-debuggable signed APK, checks its application ID and certificate, and writes the APK, SHA-256 checksums and build metadata under `artifacts/v1.0.0/`. Commit the tested source before packaging so `build-info.json` identifies a clean commit. Signing material stays outside Git.
 
-1. Install the APK on Android.
-2. Open **Codex Quota**.
-3. Tap **Sign in with Codex**.
-4. Complete the device-code login in the browser.
-5. Add the widget to the home screen.
-6. Tap the widget whenever you want an immediate refresh.
-7. If refresh looks stuck, open **Codex Quota** and check **Widget log**.
+The v1 signer SHA-256 fingerprint is `ff7f5e3369f7063ad452036834317fda47c1f40d329816f1d3e948004fb0c53c`. The script refuses other certificates unless `CODEX_WIDGET_EXPECTED_SIGNER` explicitly selects a different one. This certificate originated as the retained local Android development key; release builds disable debugging. Preserve the key for future compatible updates.
 
-## Security notes
+## Code structure
 
-- Access and refresh tokens are stored in Android app-private SharedPreferences.
-- The repository does not include personal tokens, APK artifacts, or local build output.
-- The OAuth client id is a public client identifier, not a client secret.
+| Module | Responsibility |
+| --- | --- |
+| `CodexHttp`, `CodexAuth` | Stateless HTTP and OAuth. No blind retries of rotating refresh tokens. |
+| `AccountStore`, `AccountCodec` | Atomic encrypted state, account identity, migration and account edits. |
+| `LoginCoordinator` | One cancellable device login, persisted across process recreation. |
+| `QuotaRepository` | Serialized refresh, token rotation, isolated caches and failures. |
+| `UsageParser`, `QuotaCacheCodec` | Quota response normalization and timestamp preservation. |
+| `QuotaPresentation` | Shared per-account remaining-quota and freshness rules. |
+| `QuotaRuntime`, `QuotaRefreshJob` | Application-scoped work, listeners and Android scheduling. |
+| `MainActivity`, `CodexQuotaWidgetProvider` | Account management and native RemoteViews rendering. |
 
-## Project status
-
-Small personal utility / experiment. Expect rough edges.
-
-## Release notes
-
-### Next
-
-- Added estimated final usage for the 5h and weekly windows.
-- Kept bars as actual usage while showing the forecast in text.
-- Added an on-track status label derived from actual usage versus expected pace.
-- Added a persistent in-app widget log covering widget updates, tap refreshes, auth refreshes, HTTP status, cache fallback, and render completion.
-
-### 0.3.1
-
-- Cache the last successful quota locally and render it immediately during widget updates.
-- Fall back to cached quota for up to 7 days when the ChatGPT usage endpoint has transient DNS/network failures.
-- Keep manual refresh forceful, but still avoid blanking the widget if the network request fails.
-
-
-### 0.3.0
-
-- Switched from a hosted status JSON endpoint to direct Codex / ChatGPT OAuth device login.
-- Added refresh-token support.
-- Added remaining quota reset time in the widget.
-- Normalized plan labels (`PRO`, `PLUS`, `TEAM`, etc.).
-- Replaced the placeholder launcher icon.
-
-### 0.2.1
-
-- Fixed widget loading on Android launchers by replacing an unsupported raw `View` with a RemoteViews-safe `TextView` dot.
-
-### 0.2.0
-
-- Fancier 4x1 widget styling.
-- Gradient quota bars.
-- Animated bar fill on update/tap refresh.
-- Better live/fetching/error state labels.
+Tests cover weekly-only API shapes, missing data, cache age and reset expiry, separate account percentages, duplicate sign-ins, cancellation and process restoration, token rotation, account removal during refresh, and actual RemoteViews application/reapplication. Live browser approval requires the account owner and is not simulated by device fixtures.

@@ -1,136 +1,74 @@
 package top.logge.codexquota
 
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
-import kotlin.math.roundToInt
 
+/** Shared presentation for the app and RemoteViews. No aggregation across accounts. */
 object QuotaPresentation {
-    const val PRIMARY_WINDOW_MS: Long = 5 * 60 * 60 * 1000L
-    const val WEEKLY_WINDOW_MS: Long = 7 * 24 * 60 * 60 * 1000L
+    const val STALE_AFTER_MS = 60 * 60 * 1000L
+    const val MAX_CACHE_MS = 7 * 24 * 60 * 60 * 1000L
+    data class Window(val label: String, val remaining: Int, val text: String, val resetText: String, val expired: Boolean)
+    data class Card(val name: String, val plan: String, val status: String, val windows: List<Window>, val stale: Boolean)
 
-    data class WindowPresentation(
-        val text: String,
-        val used: Int,
-        val expected: Int?,
-        val estimate: Int?,
-        val available: Boolean,
-    )
-
-    data class Presentation(
-        val liveText: String,
-        val primary: WindowPresentation,
-        val weekly: WindowPresentation,
-    )
-
-    fun fromQuota(quota: Quota, fallbackLiveText: String): Presentation {
-        val primaryPace = quota.primary?.expectedUsedPercent(PRIMARY_WINDOW_MS)
-        val weeklyPace = quota.weekly?.expectedUsedPercent(WEEKLY_WINDOW_MS)
-        val primaryEstimate = quota.primary?.estimatedFinalUsedPercent(PRIMARY_WINDOW_MS)
-        val weeklyEstimate = quota.weekly?.estimatedFinalUsedPercent(WEEKLY_WINDOW_MS)
-        return Presentation(
-            liveText = quota.paceLabel(fallbackLiveText, primaryPace, weeklyPace),
-            primary = quota.primary?.let {
-                WindowPresentation(
-                    text = "5h ${it.used.estimateLabel(primaryEstimate)} · ${it.reset.remainingLabel()}",
-                    used = it.used,
-                    expected = primaryPace,
-                    estimate = primaryEstimate,
-                    available = true,
-                )
-            } ?: WindowPresentation(
-                text = "5h unavailable",
-                used = 0,
-                expected = null,
-                estimate = null,
-                available = false,
-            ),
-            weekly = quota.weekly?.let {
-                WindowPresentation(
-                    text = "W ${it.used.estimateLabel(weeklyEstimate)} · ${it.reset.remainingLabel()}",
-                    used = it.used,
-                    expected = weeklyPace,
-                    estimate = weeklyEstimate,
-                    available = true,
-                )
-            } ?: WindowPresentation(
-                text = "W unavailable",
-                used = 0,
-                expected = null,
-                estimate = null,
-                available = false,
-            ),
+    fun card(account: Account, now: Long = System.currentTimeMillis()): Card {
+        val age = (now - account.fetchedAt).coerceAtLeast(0)
+        val stale = account.error != null || age >= STALE_AFTER_MS
+        val quota = account.quota?.takeIf { account.fetchedAt > 0 && age <= MAX_CACHE_MS }
+        val windows = listOfNotNull(
+            quota?.primary?.let { window("5 Std.", it, now) },
+            quota?.weekly?.let { window("Woche", it, now) },
         )
+        val stamp = if (age < 24 * 60 * 60 * 1000L) "HH:mm" else "dd.MM. HH:mm"
+        val updated = SimpleDateFormat(stamp, Locale.GERMANY).format(Date(account.fetchedAt))
+        val status = when {
+            quota == null -> account.error ?: if (account.quota != null) "Daten veraltet · bitte aktualisieren" else "Noch keine Quota geladen"
+            account.error != null -> "${account.error} · Stand $updated"
+            stale -> "Gespeichert · $updated"
+            windows.any { it.expired } -> "Reset fällig · bitte aktualisieren"
+            else -> "Aktualisiert $updated"
+        }
+        return Card(account.name, planLabel(quota?.plan ?: account.auth.planType.orEmpty()), status, windows, stale)
+    }
+
+    fun window(label: String, quota: WindowQuota, now: Long): Window {
+        val expired = quota.resetsAtMs?.let { now >= it } ?: false
+        val remaining = 100 - quota.used.coerceIn(0, 100)
+        val reset = quota.resetsAtMs?.let { at ->
+            if (expired) "Reset fällig" else "Reset in ${duration(at - now)}"
+        } ?: "Reset unbekannt"
+        return Window(label, remaining, if (expired) "zuletzt $remaining % frei" else "$remaining % frei", reset, expired)
     }
 
     fun planLabel(plan: String): String {
-        val normalized = plan.lowercase(Locale.ROOT).replace("-", "_").replace(" ", "_")
+        val normalized = plan.lowercase(Locale.ROOT)
         return when {
-            normalized.isBlank() -> "CODEX"
-            normalized.contains("pro_lit") || normalized.contains("prolit") -> "PRO"
-            normalized.contains("pro") -> "PRO"
-            normalized.contains("plus") -> "PLUS"
-            normalized.contains("team") -> "TEAM"
-            normalized.contains("business") -> "BIZ"
-            normalized.contains("enterprise") -> "ENT"
-            normalized.contains("edu") -> "EDU"
-            normalized.contains("free") -> "FREE"
+            "pro" in normalized -> "PRO"
+            "plus" in normalized -> "PLUS"
+            "business" in normalized || "team" in normalized -> "BUSINESS"
+            "enterprise" in normalized -> "ENTERPRISE"
+            "edu" in normalized -> "EDU"
+            "free" in normalized -> "FREE"
             else -> "CODEX"
         }
     }
 
-    fun String.remainingLabel(): String {
-        val trimmed = trim()
-        return if (trimmed.isBlank() || trimmed == "?") "rem ?" else "rem $trimmed"
-    }
-
-    fun WindowQuota.expectedUsedPercent(windowMs: Long): Int? {
-        val remainingMs = reset.parseDurationMs() ?: return null
-        val elapsedMs = (windowMs - remainingMs).coerceIn(0L, windowMs)
-        return ((elapsedMs.toDouble() / windowMs.toDouble()) * 100.0).roundToInt().coerceIn(0, 100)
-    }
-
-    fun WindowQuota.estimatedFinalUsedPercent(windowMs: Long): Int? {
-        val elapsedPercent = expectedUsedPercent(windowMs)?.takeIf { it > 0 } ?: return null
-        return ((used.toDouble() / elapsedPercent.toDouble()) * 100.0).roundToInt().coerceAtLeast(0)
-    }
-
-    fun Int.estimateLabel(estimate: Int?): String =
-        if (estimate == null) "$this%" else "$this→$estimate%"
-
-    fun Quota.paceLabel(fallback: String, primaryExpected: Int?, weeklyExpected: Int?): String {
-        val worstDelta = listOfNotNull(
-            primary?.let { window -> primaryExpected?.let { window.used - it } },
-            weekly?.let { window -> weeklyExpected?.let { window.used - it } },
-        ).maxOrNull() ?: return fallback
+    fun duration(ms: Long): String {
+        val minutes = (ms.coerceAtLeast(0) + 59_999) / 60_000
+        val hours = minutes / 60
         return when {
-            worstDelta >= 15 -> "over pace"
-            worstDelta >= 7 -> "watch pace"
-            worstDelta <= -20 -> "ahead"
-            else -> "on track"
+            hours >= 24 -> "${hours / 24}d ${hours % 24}h"
+            hours > 0 -> "${hours}h ${minutes % 60}m"
+            else -> "${minutes}m"
         }
     }
+}
 
-    fun String.parseDurationMs(): Long? {
-        val normalized = trim().lowercase(Locale.ROOT)
-        if (normalized.isBlank() || normalized == "?") return null
-
-        var totalMinutes = 0L
-        Regex("""(\d+)\s*([dhm])""").findAll(normalized).forEach { match ->
-            val value = match.groupValues[1].toLongOrNull() ?: return@forEach
-            totalMinutes += when (match.groupValues[2]) {
-                "d" -> value * 24L * 60L
-                "h" -> value * 60L
-                else -> value
-            }
-        }
-        if (totalMinutes > 0L) return totalMinutes * 60_000L
-
-        val colonParts = normalized.split(":")
-        if (colonParts.size == 2) {
-            val hours = colonParts[0].toLongOrNull()
-            val minutes = colonParts[1].toLongOrNull()
-            if (hours != null && minutes != null) return (hours * 60L + minutes) * 60_000L
-        }
-
-        return normalized.toLongOrNull()?.let { it.coerceAtLeast(0L) * 60_000L }
+internal fun WindowQuota.anchoredAt(fetchedAt: Long): WindowQuota {
+    if (resetsAtMs != null || fetchedAt <= 0) return this
+    val parts = Regex("(\\d+)\\s*([dhm])").findAll(reset.lowercase(Locale.ROOT)).toList()
+    val minutes = if (parts.isEmpty()) reset.toLongOrNull() else parts.sumOf {
+        it.groupValues[1].toLong() * when (it.groupValues[2]) { "d" -> 1440L; "h" -> 60L; else -> 1L }
     }
+    return copy(resetsAtMs = minutes?.let { fetchedAt + it * 60_000 })
 }

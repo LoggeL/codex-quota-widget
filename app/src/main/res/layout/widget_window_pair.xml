@@ -1,0 +1,13 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingTop="3dp">
+    <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginEnd="8dp">
+        <TextView android:includeFontPadding="false" android:id="@+id/pair_primary_text" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#F2F5F8" android:textSize="11sp" android:maxLines="1" />
+        <ProgressBar android:id="@+id/pair_primary_bar" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="4dp" android:layout_marginTop="3dp" android:progressTint="#6ED8BA" android:progressBackgroundTint="#293644" />
+        <TextView android:includeFontPadding="false" android:id="@+id/pair_primary_reset" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#9EADBA" android:textSize="11sp" android:maxLines="1" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginStart="8dp">
+        <TextView android:includeFontPadding="false" android:id="@+id/pair_weekly_text" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#F2F5F8" android:textSize="11sp" android:maxLines="1" />
+        <ProgressBar android:id="@+id/pair_weekly_bar" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="4dp" android:layout_marginTop="3dp" android:progressTint="#6ED8BA" android:progressBackgroundTint="#293644" />
+        <TextView android:includeFontPadding="false" android:id="@+id/pair_weekly_reset" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#9EADBA" android:textSize="11sp" android:maxLines="1" />
+    </LinearLayout>
+</LinearLayout>

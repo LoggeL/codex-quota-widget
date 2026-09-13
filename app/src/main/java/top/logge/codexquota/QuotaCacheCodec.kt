@@ -3,7 +3,7 @@ package top.logge.codexquota
 import org.json.JSONObject
 
 internal object QuotaCacheCodec {
-    private const val SCHEMA = 2
+    private const val SCHEMA = 3
 
     fun encode(quota: Quota): JSONObject = JSONObject()
         .put("schema", SCHEMA)
@@ -18,19 +18,22 @@ internal object QuotaCacheCodec {
         return Quota(
             plan = json.optString("plan", "codex"),
             primary = cachedPrimary?.takeUnless {
-                schema < SCHEMA && it.used == 0 && it.reset == "?"
+                schema < 2 && it.used == 0 && it.reset == "?"
             },
             weekly = json.optJSONObject("weekly")?.windowQuotaFromJson(),
-            creditsBalance = json.optString("creditsBalance").ifBlank { null },
+            creditsBalance = json.stringOrNull("creditsBalance"),
         )
     }
 
     private fun WindowQuota.toJson(): JSONObject = JSONObject()
         .put("used", used)
         .put("reset", reset)
+        .put("resetsAtMs", resetsAtMs).put("durationMinutes", durationMinutes)
 
     private fun JSONObject.windowQuotaFromJson(): WindowQuota = WindowQuota(
         used = optInt("used", 0).coerceIn(0, 100),
         reset = optString("reset", "?"),
+        resetsAtMs = optLong("resetsAtMs").takeIf { it > 0 },
+        durationMinutes = optLong("durationMinutes").takeIf { it > 0 },
     )
 }

@@ -4,7 +4,9 @@ import org.json.JSONObject
 
 object UsageParser {
     fun parseUsage(json: JSONObject, planType: String): Quota {
-        val rateLimit = json.firstObject(
+        val mapped = (json.optJSONObject("rateLimitsByLimitId") ?: json.optJSONObject("rate_limits_by_limit_id"))
+            ?.optJSONObject("codex")
+        val rateLimit = mapped ?: json.firstObject(
             "rate_limit",
             "rateLimit",
             "rate_limit_status",
@@ -17,7 +19,7 @@ object UsageParser {
         val candidates = buildList {
             rateLimit?.collectWindowCandidates(this)
             json.collectWindowCandidates(this)
-        }.distinctBy { it.window }
+        }.distinctBy { it.key to it.window }
         val classified = classifyWindows(candidates)
 
         val credits = json.optJSONObject("credits")
@@ -96,6 +98,9 @@ object UsageParser {
         return WindowQuota(
             used = used,
             reset = remainingTimeLabel(),
+            resetsAtMs = firstPositiveLong("resets_at", "resetsAt", "reset_at", "resetAt")
+                ?.let { if (it > 10_000_000_000L) it else it * 1000L },
+            durationMinutes = windowDurationMinutes(),
         )
     }
 
@@ -143,6 +148,7 @@ object UsageParser {
         "duration_mins",
         "durationMins",
     ) ?: firstPositiveLong(
+        "limit_window_seconds",
         "window_duration_seconds",
         "windowDurationSeconds",
         "duration_seconds",

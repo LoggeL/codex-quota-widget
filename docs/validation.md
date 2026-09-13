@@ -1,0 +1,10 @@
+# v1.0.0 validation
+
+- 33 JVM/Robolectric tests cover parser classification, independent quota values, encrypted-state serialization, cache expiry, duplicate login identity, refresh-token rotation, interrupted login, restored pending login and RemoteViews reapplication.
+- Three instrumentation tests on a dedicated Android 16 / API 36 ARM64 emulator exercise real Keystore storage, encrypted data read-back from a new store instance, deletion of one account, legacy preference migration and app/widget rendering.
+- Widget rendering checks every visible text view against the allocated height, with two weekly-only accounts, two accounts with both windows and a failed account beside a healthy one. Reference images use invented names and credentials.
+- The live usage endpoint was read successfully for the two locally configured desktop accounts. Both responses contained weekly-only `primary_window` data with `limit_window_seconds: 604800`. No credentials or personal account identifiers are stored in this repository.
+- The Android app obtained a real device code, opened the official device-login URL in the browser, and restored the pending login after stopping its process and relaunching it through the launcher intent. The pending login was then cancelled. Browser account approval and the subsequent live token exchange require the account owner and were not completed in this run; coordinator completion is covered with injected test responses.
+- The release packaging script checks tests, lint, APK identity, non-debuggable configuration and the expected certificate. Public release assets are downloaded again and verified after publication.
+
+The published 0.4.0 certificate is `e6b07afea39b5957763b9ffd136344b907f1aa55fdfd32d34359cbf61acea5ed`. The retained local key used for 1.0.0 has certificate `ff7f5e3369f7063ad452036834317fda47c1f40d329816f1d3e948004fb0c53c`. These are different signers, so installing 1.0.0 requires replacing the old installation. A matching-certificate legacy data migration is tested at the storage layer, not claimed as an install-over update from the public 0.4.0 APK.

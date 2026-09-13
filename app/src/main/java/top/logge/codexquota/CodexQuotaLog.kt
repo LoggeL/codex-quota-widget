@@ -10,7 +10,7 @@ object CodexQuotaLog {
     private const val KEY_LINES = "lines"
     private const val MAX_LINES = 80
 
-    fun append(context: Context, message: String) {
+    @Synchronized fun append(context: Context, message: String) {
         val appContext = context.applicationContext
         val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val timestamp = SimpleDateFormat("MM-dd HH:mm:ss", Locale.GERMANY).format(Date())
@@ -28,7 +28,7 @@ object CodexQuotaLog {
         context.applicationContext
             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(KEY_LINES, "")!!
-            .ifBlank { "No widget log entries yet." }
+            .ifBlank { "Noch keine Diagnose-Einträge." }
 
     fun clear(context: Context) {
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()

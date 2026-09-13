@@ -45,4 +45,44 @@ class CodexQuotaWidgetRemoteViewsTest {
         assertEquals(View.VISIBLE, root.findViewById<View>(R.id.account_status).visibility)
         assertTrue(root.findViewById<TextView>(R.id.account_status).text.contains("Erneut anmelden"))
     }
+    @Test fun oneRowUsesTwoColumnsWithSeparateQuotaAndReset() {
+        val root = CodexQuotaWidgetProvider.buildViews(context, listOf(account("one", 25), account("two", 19)), 56, now)
+            .apply(context, FrameLayout(context))
+        val rows = root.findViewById<LinearLayout>(R.id.account_rows)
+        assertEquals(LinearLayout.HORIZONTAL, rows.orientation)
+        assertEquals(2, rows.childCount)
+        assertEquals(75, rows.getChildAt(0).findViewById<ProgressBar>(R.id.window_progress).progress)
+        assertEquals(81, rows.getChildAt(1).findViewById<ProgressBar>(R.id.window_progress).progress)
+        assertEquals("W 75%", rows.getChildAt(0).findViewById<TextView>(R.id.window_value).text.toString())
+        assertEquals("2h", rows.getChildAt(0).findViewById<TextView>(R.id.window_reset).text.toString())
+    }
+    @Test fun oneRowPreservesBothWindowTypes() {
+        val first = account().copy(quota = Quota("pro", WindowQuota(72, "1h", now + 3600000), account().quota!!.weekly))
+        val root = CodexQuotaWidgetProvider.buildViews(context, listOf(first, account("two")), 56, now)
+            .apply(context, FrameLayout(context))
+        val windows = root.findViewById<LinearLayout>(R.id.window_rows)
+        assertEquals(2, windows.childCount)
+        assertEquals("5h 28%", windows.getChildAt(0).findViewById<TextView>(R.id.window_value).text.toString())
+        assertEquals("W 75%", windows.getChildAt(1).findViewById<TextView>(R.id.window_value).text.toString())
+    }
+    @Test fun oneRowReapplyClearsRemovedAccountAndShowsLoginWhenEmpty() {
+        val root = CodexQuotaWidgetProvider.buildViews(context, listOf(account(), account("two")), 56, now)
+            .apply(context, FrameLayout(context))
+        CodexQuotaWidgetProvider.buildViews(context, listOf(account()), 56, now).reapply(context, root)
+        assertEquals(1, root.findViewById<LinearLayout>(R.id.account_rows).childCount)
+        CodexQuotaWidgetProvider.buildViews(context, emptyList(), 56, now).reapply(context, root)
+        assertEquals(0, root.findViewById<LinearLayout>(R.id.account_rows).childCount)
+        assertEquals(View.VISIBLE, root.findViewById<View>(R.id.empty_state).visibility)
+        assertEquals(View.GONE, root.findViewById<View>(R.id.account_rows).visibility)
+    }
+    @Test fun oneRowKeepsErrorsAndExpiredSnapshotsExplicit() {
+        val root = CodexQuotaWidgetProvider.buildViews(context,
+            listOf(account().copy(error = "Erneut anmelden"), account("two")), 56, now + 7200001)
+            .apply(context, FrameLayout(context))
+        val rows = root.findViewById<LinearLayout>(R.id.account_rows)
+        assertEquals("!", rows.getChildAt(0).findViewById<TextView>(R.id.compact_status).text.toString())
+        assertEquals("alt", rows.getChildAt(1).findViewById<TextView>(R.id.compact_status).text.toString())
+        assertEquals("fällig", rows.getChildAt(1).findViewById<TextView>(R.id.window_reset).text.toString())
+    }
+
 }

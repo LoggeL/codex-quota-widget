@@ -67,15 +67,31 @@ class DeviceAcceptanceTest {
         renderWidget(listOf(fake("1", "Privat", 25, true), fake("2", "Arbeit", 19, true)), 180, "widget-two-windows.png")
         renderWidget(listOf(accounts[0].copy(error = "Erneut anmelden"), accounts[1]), 180, "widget-partial-error.png")
     }
+    @Test fun testFourByOneAtMinimumSizeAndLargerText() {
+        val accounts = listOf(fake("1", "Privat", 25), fake("2", "Arbeit", 19))
+        val both = listOf(fake("1", "Privat", 25, true), fake("2", "Arbeit", 19, true)).map {
+            val quota = checkNotNull(it.quota)
+            it.copy(quota = quota.copy(weekly = quota.weekly!!.copy(resetsAtMs = now + 6 * 86400000L + 12 * 3600000L)))
+        }
+        renderWidget(accounts, 56, "widget-4x1.png")
+        renderWidget(accounts, 56, "widget-4x1-minimum.png", widthDp = 250)
+        renderWidget(both, 56, "widget-4x1-both-windows.png", widthDp = 250)
+        renderWidget(both, 56, "widget-4x1-large-text.png", widthDp = 250, fontScale = 1.3f)
+        renderWidget(listOf(accounts[0].copy(error = "Erneut anmelden"), accounts[1]), 56, "widget-4x1-error.png")
+        renderWidget(listOf(accounts[0].copy(quota = null, error = "Erneut anmelden"), accounts[1]), 56, "widget-4x1-no-data.png")
+        renderWidget(emptyList(), 56, "widget-4x1-empty.png", widthDp = 250)
+    }
     private fun screenshot(name: String) {
         val image = instrumentation.uiAutomation.takeScreenshot()
         File(context.getExternalFilesDir(null), name).outputStream().use { assertTrue(image.compress(Bitmap.CompressFormat.PNG, 100, it)) }
     }
-    private fun renderWidget(accounts: List<Account>, heightDp: Int, name: String) {
+    private fun renderWidget(accounts: List<Account>, heightDp: Int, name: String, widthDp: Int = 360, fontScale: Float = 1f) {
         instrumentation.runOnMainSync {
-            val density = context.resources.displayMetrics.density
-            val width = (360 * density).toInt(); val height = (heightDp * density).toInt()
-            val root = CodexQuotaWidgetProvider.buildViews(context, accounts, heightDp).apply(context, FrameLayout(context))
+            val config = android.content.res.Configuration(context.resources.configuration).apply { this.fontScale = fontScale }
+            val renderContext = context.createConfigurationContext(config)
+            val density = renderContext.resources.displayMetrics.density
+            val width = (widthDp * density).toInt(); val height = (heightDp * density).toInt()
+            val root = CodexQuotaWidgetProvider.buildViews(renderContext, accounts, heightDp).apply(renderContext, FrameLayout(renderContext))
             root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
             root.layout(0, 0, width, height)
             fun checkBounds(view: View) {
@@ -83,7 +99,17 @@ class DeviceAcceptanceTest {
                 if (view is android.widget.TextView) {
                     val rect = android.graphics.Rect(0, 0, view.width, view.height)
                     (root as android.view.ViewGroup).offsetDescendantRectToMyCoords(view, rect)
-                    assertTrue("Clipped text: ${view.text}", rect.bottom <= height - root.paddingBottom)
+                    assertTrue("Clipped text: ${view.text} at $widthDp x $heightDp font $fontScale", rect.bottom <= height - root.paddingBottom)
+                    if (view.id == R.id.window_value || view.id == R.id.window_reset) {
+                        assertEquals("Ellipsized quota: ${view.text}", 0, view.layout.getEllipsisCount(0))
+                        assertTrue("Quota text too wide: ${view.text}", view.layout.getLineWidth(0) <= view.width - view.compoundPaddingLeft - view.compoundPaddingRight + 1)
+                    }
+                }
+                if (view is android.widget.ProgressBar) {
+                    val rect = android.graphics.Rect(0, 0, view.width, view.height)
+                    (root as android.view.ViewGroup).offsetDescendantRectToMyCoords(view, rect)
+                    assertTrue("Clipped quota bar at $widthDp x $heightDp font $fontScale", rect.bottom <= height - root.paddingBottom)
+                    assertTrue("Zero-width quota bar", rect.width() > 0)
                 }
                 if (view is android.view.ViewGroup) for (i in 0 until view.childCount) checkBounds(view.getChildAt(i))
             }

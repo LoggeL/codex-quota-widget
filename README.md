@@ -6,11 +6,19 @@ An Android app and home-screen widget for viewing the remaining Codex quota of m
 
 ![Two independent account quotas, illustrated with test data](docs/widget-preview.png)
 
-## Version 1.0
+## Version 1.0.1
+
+The widget now defaults to **4x1**, with both accounts side by side. Each column shows its account name, remaining quota, reset countdown and separate bars. `W` means weekly and `5h` means the short window. `frei` identifies remaining quota; `alt` or `!` marks an expired snapshot or a failed refresh. Tap the widget for full status details.
+
+The compact layout supports 250 x 56 dp, including two windows per account and 130% font scaling. Resize an existing widget to one row, or add it again. At 140 dp height or more the detailed layout returns automatically.
+
+**Updating from 1.0.0:** install 1.0.1 over the existing app. The application ID, signing certificate and encrypted account format are unchanged.
+
+## Multi-account features
 
 - Account cards in the app and widget, with remaining quota and separate reset times.
 - Add, rename and remove accounts. Signing in to the same account again renews its login instead of creating a duplicate.
-- Weekly-only accounts display just their weekly window. Two accounts fit in a 4x2 widget; enlarge it if your accounts have both windows or if you use larger text.
+- Weekly-only accounts display just their weekly window. Two accounts fit in the default 4x1 widget, including accounts with both windows. Enlarge it for more detailed status text.
 - The widget displays the first two accounts and links to any additional accounts in the app.
 - Per-account cache and errors: one expired login does not hide the other account.
 - Device login continues while the browser is open and resumes after process recreation, until its 15-minute deadline. It can be cancelled.
@@ -60,7 +68,7 @@ Provide `ANDROID_HOME`, `JAVA_HOME`, `CODEX_WIDGET_KEYSTORE`, `CODEX_WIDGET_STOR
 python3 scripts/package_release.py
 ```
 
-The script runs unit tests and release lint, builds a non-debuggable signed APK, checks its application ID and certificate, and writes the APK, SHA-256 checksums and build metadata under `artifacts/v1.0.0/`. Commit the tested source before packaging so `build-info.json` identifies a clean commit. Signing material stays outside Git.
+The script runs unit tests and release lint, builds a non-debuggable signed APK, checks its application ID and certificate, and writes the APK, SHA-256 checksums and build metadata under `artifacts/v<version>/`. Commit the tested source before packaging so `build-info.json` identifies a clean commit. Signing material stays outside Git.
 
 The v1 signer SHA-256 fingerprint is `ff7f5e3369f7063ad452036834317fda47c1f40d329816f1d3e948004fb0c53c`. The script refuses other certificates unless `CODEX_WIDGET_EXPECTED_SIGNER` explicitly selects a different one. This certificate originated as the retained local Android development key; release builds disable debugging. Preserve the key for future compatible updates.
 

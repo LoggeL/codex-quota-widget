@@ -35,7 +35,7 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
             if (ids.isEmpty()) return
             val state = runCatching { QuotaRuntime.get(context).store.read() }
             ids.forEach { id ->
-                val height = manager.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 160)
+                val height = manager.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 56)
                 manager.updateAppWidget(id, buildViews(context, state.getOrNull()?.accounts.orEmpty(), height,
                     storageError = state.isFailure))
             }
@@ -43,7 +43,9 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
 
         internal fun buildViews(context: Context, accounts: List<Account>, height: Int = 160,
             now: Long = System.currentTimeMillis(), storageError: Boolean = false): RemoteViews {
-            val views = RemoteViews(context.packageName, R.layout.codex_quota_widget)
+            val oneRow = height < 140
+            val views = if (oneRow) CompactQuotaWidget.build(context, accounts, now, storageError)
+                else RemoteViews(context.packageName, R.layout.codex_quota_widget)
             val openIntent = Intent(context, MainActivity::class.java).setAction(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LAUNCHER)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -53,6 +55,7 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
                 .setAction(ACTION_REFRESH), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             views.setOnClickPendingIntent(R.id.widget_root, open)
             views.setOnClickPendingIntent(R.id.refresh, refresh)
+            if (oneRow) return views
             views.setTextViewText(R.id.widget_count, "${accounts.size} ${if (accounts.size == 1) "Account" else "Accounts"}")
             views.removeAllViews(R.id.account_rows)
             val compact = height < 240

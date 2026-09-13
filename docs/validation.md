@@ -1,3 +1,11 @@
+# v1.0.1 validation
+
+- 37 JVM/Robolectric tests, including two-column 4x1 rendering, both window types, independent bars, account removal/reapplication, empty state, failed refreshes and expired snapshots.
+- Four Android instrumentation tests. The new layout is checked at 360 x 56 dp and 250 x 56 dp, with weekly-only accounts, both windows, 130% text scaling, partial failures, absent data and no accounts.
+- Native layout assertions cover text height, percentage/reset text width and quota-bar bounds. No percentage or reset label is ellipsized in the tested sizes.
+- Existing detailed layouts are still checked at 360 x 180 dp. The compact layout is selected below 140 dp; launcher metadata requests four columns and one row with a 56 dp minimum height.
+- Version code 8 keeps the v1 signing certificate and account-storage format for installation over 1.0.0.
+
 # v1.0.0 validation
 
 - 33 JVM/Robolectric tests cover parser classification, independent quota values, encrypted-state serialization, cache expiry, duplicate login identity, refresh-token rotation, interrupted login, restored pending login and RemoteViews reapplication.

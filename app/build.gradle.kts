@@ -39,6 +39,8 @@ android {
     }
     buildFeatures { buildConfig = true }
 
+    testBuildType = providers.gradleProperty("testBuildType").getOrElse("debug")
+
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }

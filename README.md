@@ -48,6 +48,8 @@ adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb shell am instrument -w top.logge.codexquota.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
+To compile instrumentation against the signed release, supply the signing environment and run `./gradlew -PtestBuildType=release assembleReleaseAndroidTest`. Install that test APK alongside the release APK; Kotlin internal method names differ between build variants.
+
 Run device tests only on a test device: they replace this app's account store with invented fixtures and clear it afterward. They exercise real Keystore encryption, single-account migration and Android rendering. Device screenshots use invented `Privat` and `Arbeit` accounts.
 
 ## Release packaging

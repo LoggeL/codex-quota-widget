@@ -9,58 +9,73 @@ import android.widget.RemoteViews
 
 /** A single launcher row: two account columns, with no separate title or plan row. */
 internal object CompactQuotaWidget {
+    private data class WindowSlot(val row: Int, val value: Int, val reset: Int, val bar: Int)
+    private data class AccountSlot(val root: Int, val name: Int, val status: Int, val error: Int,
+        val primary: WindowSlot, val weekly: WindowSlot)
+    private val slots = listOf(
+        AccountSlot(R.id.first_account, R.id.first_name, R.id.first_status, R.id.first_error,
+            WindowSlot(R.id.first_primary_row, R.id.first_primary_value, R.id.first_primary_reset, R.id.first_primary_bar),
+            WindowSlot(R.id.first_weekly_row, R.id.first_weekly_value, R.id.first_weekly_reset, R.id.first_weekly_bar)),
+        AccountSlot(R.id.second_account, R.id.second_name, R.id.second_status, R.id.second_error,
+            WindowSlot(R.id.second_primary_row, R.id.second_primary_value, R.id.second_primary_reset, R.id.second_primary_bar),
+            WindowSlot(R.id.second_weekly_row, R.id.second_weekly_value, R.id.second_weekly_reset, R.id.second_weekly_bar)),
+    )
+
     fun build(context: Context, accounts: List<Account>, now: Long, storageError: Boolean, width: Int): RemoteViews {
-        val views = RemoteViews(context.packageName, R.layout.codex_quota_widget_compact)
-        views.removeAllViews(R.id.account_rows)
+        // Fixed slots avoid nested add/remove actions and repeated IDs during launcher reuse.
+        val views = RemoteViews(context.packageName, R.layout.codex_quota_widget_fixed)
         views.setViewVisibility(R.id.account_rows, if (accounts.isEmpty()) View.GONE else View.VISIBLE)
         views.setViewVisibility(R.id.empty_state, if (accounts.isEmpty()) View.VISIBLE else View.GONE)
         views.setViewVisibility(R.id.refresh, if (accounts.isEmpty()) View.GONE else View.VISIBLE)
         views.setTextViewText(R.id.empty_state, if (storageError) "Codex Quota · Speicher nicht lesbar. App öffnen."
             else "Codex Quota · Accounts verbinden")
-        accounts.take(2).forEach { account ->
+        slots.forEachIndexed { index, slot ->
+            // Reset every optional field on every update, including accounts and windows removed.
+            views.setViewVisibility(slot.root, View.GONE)
+            views.setViewVisibility(slot.primary.row, View.GONE)
+            views.setViewVisibility(slot.weekly.row, View.GONE)
+            views.setViewVisibility(slot.error, View.GONE)
+            val account = accounts.getOrNull(index) ?: return@forEachIndexed
             val card = QuotaPresentation.card(account, now)
-            val row = RemoteViews(context.packageName, R.layout.widget_account_compact)
-            row.setTextViewText(R.id.account_name, card.name)
-            if (width < 300 && accounts.size > 1) {
-                row.setTextViewTextSize(R.id.account_name, TypedValue.COMPLEX_UNIT_SP, 10f)
-                row.setTextViewTextSize(R.id.compact_status, TypedValue.COMPLEX_UNIT_SP, 8f)
-            }
+            views.setViewVisibility(slot.root, View.VISIBLE)
+            views.setTextViewText(slot.name, card.name)
+            val narrow = width < 300 && accounts.size > 1
+            views.setTextViewTextSize(slot.name, TypedValue.COMPLEX_UNIT_SP, if (narrow) 10f else 11f)
+            views.setTextViewTextSize(slot.status, TypedValue.COMPLEX_UNIT_SP, if (narrow) 8f else 9f)
             val old = card.stale || card.windows.any { it.expired }
-            row.setViewVisibility(R.id.compact_status, View.VISIBLE)
             val tightest = card.tightestWindow
             val delta = tightest?.let {
                 val label = if (card.windows.size > 1) if (it.label == "Woche") "W " else "5h " else ""
                 label + it.pace!!.shortDelta
             } ?: "?"
-            row.setTextViewText(R.id.compact_status, when { account.error != null -> "!"; old -> "alt"; else -> delta })
-            row.setTextColor(R.id.compact_status, if (old) Color.rgb(240, 191, 118) else QuotaUsageBar.color(tightest?.pace))
-            row.setContentDescription(R.id.compact_status, "${card.status}. ${tightest?.let { "${it.label}: ${it.paceText}" }.orEmpty()}")
-            row.setContentDescription(R.id.compact_account, "${card.name}, ${card.plan}. ${card.status}")
-            row.setTextViewText(R.id.compact_error, card.status)
-            row.setViewVisibility(R.id.compact_error, if (card.windows.isEmpty()) View.VISIBLE else View.GONE)
-            row.removeAllViews(R.id.window_rows)
+            views.setTextViewText(slot.status, when { account.error != null -> "!"; old -> "alt"; else -> delta })
+            views.setTextColor(slot.status, if (old) Color.rgb(240, 191, 118) else QuotaUsageBar.color(tightest?.pace))
+            views.setContentDescription(slot.status, "${card.status}. ${tightest?.let { "${it.label}: ${it.paceText}" }.orEmpty()}")
+            views.setContentDescription(slot.root, "${card.name}, ${card.plan}. ${card.status}")
+            views.setTextViewText(slot.error, card.status)
+            views.setViewVisibility(slot.error, if (card.windows.isEmpty()) View.VISIBLE else View.GONE)
             card.windows.forEach { window ->
-                val quota = RemoteViews(context.packageName, R.layout.widget_window_compact)
+                val target = if (window.label == "Woche") slot.weekly else slot.primary
                 val label = if (window.label == "Woche") "W" else "5h"
                 val valueText = "$label ${window.usageForecast}"
                 val resetText = shortReset(window)
-                quota.setTextViewText(R.id.window_value, valueText)
-                quota.setTextViewText(R.id.window_reset, resetText)
-                fitWindowText(context, quota, width, minOf(accounts.size, 2), valueText, resetText)
-                quota.setImageViewBitmap(R.id.window_progress, QuotaUsageBar.bitmap(window))
-                quota.setContentDescription(R.id.window_progress, "${QuotaUsageBar.description(card.name, window)}. ${card.status}")
-                row.addView(R.id.window_rows, quota)
+                views.setViewVisibility(target.row, View.VISIBLE)
+                views.setTextViewText(target.value, valueText)
+                views.setTextViewText(target.reset, resetText)
+                fitWindowText(context, views, target, width, minOf(accounts.size, 2), valueText, resetText)
+                views.setImageViewBitmap(target.bar, QuotaUsageBar.bitmap(window))
+                views.setContentDescription(target.bar, "${QuotaUsageBar.description(card.name, window)}. ${card.status}")
             }
-            views.addView(R.id.account_rows, row)
         }
-        views.setViewVisibility(R.id.widget_more, if (accounts.size > 2) View.VISIBLE else View.GONE)
-        views.setTextViewText(R.id.widget_more, "+${accounts.size - 2}")
-        views.setContentDescription(R.id.widget_more, "${accounts.size - 2} weitere Accounts in der App")
+        val more = (accounts.size - 2).coerceAtLeast(0)
+        views.setViewVisibility(R.id.widget_more, if (more > 0) View.VISIBLE else View.GONE)
+        views.setTextViewText(R.id.widget_more, if (more > 0) "+$more" else "")
+        views.setContentDescription(R.id.widget_more, if (more > 0) "$more weitere Accounts in der App" else "")
         return views
     }
 
     /** Keep both complete values readable, including large forecasts and enlarged system text. */
-    private fun fitWindowText(context: Context, views: RemoteViews, width: Int, columns: Int, value: String, reset: String) {
+    private fun fitWindowText(context: Context, views: RemoteViews, slot: WindowSlot, width: Int, columns: Int, value: String, reset: String) {
         val metrics = context.resources.displayMetrics
         // Root inset + refresh is 40dp; each column has 10dp padding and a 3dp label gap.
         val available = ((width - 40f) / columns - 15f) * metrics.density
@@ -75,8 +90,8 @@ internal object CompactQuotaWidget {
             valueSize -= .5f
             resetSize = (resetSize - .5f).coerceAtLeast(7f)
         }
-        views.setTextViewTextSize(R.id.window_value, TypedValue.COMPLEX_UNIT_SP, valueSize)
-        views.setTextViewTextSize(R.id.window_reset, TypedValue.COMPLEX_UNIT_SP, resetSize)
+        views.setTextViewTextSize(slot.value, TypedValue.COMPLEX_UNIT_SP, valueSize)
+        views.setTextViewTextSize(slot.reset, TypedValue.COMPLEX_UNIT_SP, resetSize)
     }
 
     fun shortReset(window: QuotaPresentation.Window): String = when {

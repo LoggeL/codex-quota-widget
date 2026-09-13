@@ -6,7 +6,15 @@ An Android app and home-screen widget for viewing Codex quota, consumption forec
 
 ![Two independent account quotas, illustrated with test data](docs/widget-preview.png)
 
-## Version 1.0.2
+## Version 1.0.3
+
+The 4x1 widget now uses fixed account and quota fields with unique IDs. The launcher receives the complete layout at once, including both accounts and their primary/weekly rows. Every update explicitly hides removed accounts and unavailable windows. The compact layout has a new resource identity, so a hosted older view is replaced during the update. The additional-account indicator stays blank when there are no additional accounts.
+
+This change addresses a report of missing quota rows in a launcher. The exact screenshot failure was not reproducible on the standard Android launcher; device-specific confirmation remains pending. Tests now include serialized RemoteViews, asynchronous AppWidgetHostView updates from another package, old-layout replacement and a pinned launcher widget during an APK update.
+
+All forecasts, budget comparisons and the 4x1 sizing from 1.0.2 remain available. Install 1.0.3 over 1.0.0, 1.0.1 or 1.0.2; the signing certificate and account store are unchanged.
+
+## Forecasts and budget comparison
 
 Consumption forecasts, the expected-consumption marker and ahead/deficit comparisons are restored for each account. Both accounts remain side by side in the default **4x1** layout.
 
@@ -17,7 +25,7 @@ Consumption forecasts, the expected-consumption marker and ahead/deficit compari
 
 The compact layout supports 250 x 56 dp, including both windows per account and 130% font scaling. Long values use compact notation (`1.4k%` means about 1,400%). Font sizes adapt when necessary to keep both the forecast and reset countdown complete. At 200 dp height or more (scaled with the system font size) the detailed layout returns; at 240 dp it also shows the written pace status per window.
 
-**Updating from 1.0.0 or 1.0.1:** install 1.0.2 over the existing app. The application ID, signing certificate and encrypted account format are unchanged.
+**Updating from 1.0.0, 1.0.1 or 1.0.2:** install 1.0.3 over the existing app. The application ID, signing certificate and encrypted account format are unchanged.
 
 ### How the forecast works
 

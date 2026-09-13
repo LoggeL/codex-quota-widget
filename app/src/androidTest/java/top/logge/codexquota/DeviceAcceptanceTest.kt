@@ -77,6 +77,7 @@ class DeviceAcceptanceTest {
         }
         renderWidget(accounts, 56, "widget-4x1.png")
         renderWidget(accounts, 56, "widget-4x1-minimum.png", widthDp = 250)
+        renderWidget(listOf(accounts[0].copy(name = "first.account@example.com")), 56, "widget-4x1-single.png", widthDp = 250, fontScale = 1.3f)
         renderWidget(both, 56, "widget-4x1-both-windows.png", widthDp = 250)
         renderWidget(both, 56, "widget-4x1-large-text.png", widthDp = 250, fontScale = 1.3f)
         renderWidget(listOf(accounts[0].copy(error = "Erneut anmelden"), accounts[1]), 56, "widget-4x1-error.png")
@@ -116,7 +117,8 @@ class DeviceAcceptanceTest {
                     val rect = android.graphics.Rect(0, 0, view.width, view.height)
                     (root as android.view.ViewGroup).offsetDescendantRectToMyCoords(view, rect)
                     assertTrue("Clipped text: ${view.text} at $widthDp x $heightDp font $fontScale", rect.bottom <= height - root.paddingBottom)
-                    if (view.id in listOf(R.id.window_value, R.id.window_reset, R.id.compact_status, R.id.window_pace, R.id.pair_primary_text, R.id.pair_weekly_text, R.id.pair_primary_pace, R.id.pair_weekly_pace, R.id.pair_primary_reset, R.id.pair_weekly_reset)) {
+                    val fieldName = if (view.id != View.NO_ID) view.resources.getResourceEntryName(view.id) else ""
+                    if (fieldName.matches(Regex("(first|second)_(status|.*_(value|reset))")) || view.id in listOf(R.id.window_value, R.id.window_reset, R.id.compact_status, R.id.window_pace, R.id.pair_primary_text, R.id.pair_weekly_text, R.id.pair_primary_pace, R.id.pair_weekly_pace, R.id.pair_primary_reset, R.id.pair_weekly_reset)) {
                         assertEquals("Ellipsized quota: ${view.text}", 0, view.layout.getEllipsisCount(0))
                         assertTrue("Quota text too wide: ${view.text}", view.paint.measureText(view.text.toString()) <= view.width - view.compoundPaddingLeft - view.compoundPaddingRight + 1)
                     }

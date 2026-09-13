@@ -1,3 +1,12 @@
+# v1.0.3 validation
+
+- 47 JVM/Robolectric tests. Regression coverage checks two static account slots, independent quota values, hidden removed accounts, cleared extra-account text, removal of unavailable windows and recovery from missing quota.
+- Six native instrumentation tests. The new host test parcels RemoteViews before passing them to an asynchronous AppWidgetHostView using the test package as the host context. It replaces the previous compact layout, then exercises two accounts, one account, changed consumption, no accounts and recovery to two accounts. Visible account names, quota rows and the hidden extra-account label are asserted after each update.
+- Existing 250 x 56 dp and 360 x 56 dp layout checks remain, including both windows, high forecasts and 130% system text. Added a single account with a long email-style display name at the minimum size and enlarged font.
+- An actual pinned widget was inspected in the AOSP Launcher3 on the dedicated API 36 emulator. The launcher stayed running through application updates. The encrypted fixture accounts were preserved; both account labels, forecasts, reset times and bars were visible. UI hierarchy assertions verify the exact quota strings and absence of the extra-account indicator.
+- The reported phone screenshot's failure was not reproduced on this emulator, including before the change. The fixed layout removes nested dynamic row insertion and repeated view IDs as potential compatibility failure points. This establishes emulator/host behavior; acceptance on the user's launcher is still pending.
+- Version code 10 keeps the v1 application ID, signer and encrypted storage format. No real credentials or the user's screenshot are included in the repository or APK.
+
 # v1.0.2 validation
 
 - 46 JVM/Robolectric tests. Added calculations for exact elapsed fractions, weekly-only projections above 100%, API-provided durations, deficit/ahead signs, the original warning thresholds, unavailable/start-of-window forecasts, reset expiry, fixed snapshot time and independent account/window selection.

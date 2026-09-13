@@ -1,0 +1,78 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="horizontal" android:gravity="center_vertical" android:background="@drawable/widget_background"
+    android:paddingStart="8dp" android:paddingEnd="4dp" android:paddingTop="1dp" android:paddingBottom="1dp">
+    <TextView android:id="@+id/empty_state" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+        android:text="Codex Quota · Accounts verbinden" android:textColor="#BAC6D1" android:textSize="12sp" android:includeFontPadding="false" android:maxLines="2" />
+    <LinearLayout android:id="@+id/account_rows" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent"
+        android:orientation="horizontal" android:gravity="center_vertical" android:visibility="gone">
+    <LinearLayout android:id="@+id/first_account" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent"
+        android:orientation="vertical" android:gravity="center_vertical" android:paddingStart="4dp" android:paddingEnd="6dp" android:visibility="gone">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
+            <TextView android:id="@+id/first_name" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                android:textColor="#F2F5F8" android:textSize="11sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" android:includeFontPadding="false" />
+            <TextView android:id="@+id/first_status" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textColor="#F0BF76" android:textSize="9sp" android:maxLines="1" android:includeFontPadding="false" android:layout_marginStart="3dp" />
+        </LinearLayout>
+        <TextView android:id="@+id/first_error" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textColor="#F0BF76" android:textSize="10sp" android:includeFontPadding="false" android:maxLines="2" android:ellipsize="end" android:visibility="gone" />
+        <LinearLayout android:id="@+id/first_primary_row" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
+                <TextView android:id="@+id/first_primary_value" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textColor="#F2F5F8" android:textSize="10sp" android:maxLines="1" android:includeFontPadding="false" />
+                <TextView android:id="@+id/first_primary_reset" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                    android:gravity="end" android:layout_marginStart="3dp" android:textColor="#9EADBA" android:textSize="9sp" android:maxLines="1" android:includeFontPadding="false" />
+            </LinearLayout>
+            <ImageView android:id="@+id/first_primary_bar" android:layout_width="match_parent" android:layout_height="2dp" android:layout_marginTop="1dp"
+                android:scaleType="fitXY" android:contentDescription="Verbrauch mit Soll-Marker" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/first_weekly_row" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
+                <TextView android:id="@+id/first_weekly_value" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textColor="#F2F5F8" android:textSize="10sp" android:maxLines="1" android:includeFontPadding="false" />
+                <TextView android:id="@+id/first_weekly_reset" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                    android:gravity="end" android:layout_marginStart="3dp" android:textColor="#9EADBA" android:textSize="9sp" android:maxLines="1" android:includeFontPadding="false" />
+            </LinearLayout>
+            <ImageView android:id="@+id/first_weekly_bar" android:layout_width="match_parent" android:layout_height="2dp" android:layout_marginTop="1dp"
+                android:scaleType="fitXY" android:contentDescription="Verbrauch mit Soll-Marker" />
+        </LinearLayout>
+    </LinearLayout>
+    <LinearLayout android:id="@+id/second_account" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent"
+        android:orientation="vertical" android:gravity="center_vertical" android:paddingStart="4dp" android:paddingEnd="6dp" android:visibility="gone">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
+            <TextView android:id="@+id/second_name" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                android:textColor="#F2F5F8" android:textSize="11sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" android:includeFontPadding="false" />
+            <TextView android:id="@+id/second_status" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textColor="#F0BF76" android:textSize="9sp" android:maxLines="1" android:includeFontPadding="false" android:layout_marginStart="3dp" />
+        </LinearLayout>
+        <TextView android:id="@+id/second_error" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textColor="#F0BF76" android:textSize="10sp" android:includeFontPadding="false" android:maxLines="2" android:ellipsize="end" android:visibility="gone" />
+        <LinearLayout android:id="@+id/second_primary_row" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
+                <TextView android:id="@+id/second_primary_value" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textColor="#F2F5F8" android:textSize="10sp" android:maxLines="1" android:includeFontPadding="false" />
+                <TextView android:id="@+id/second_primary_reset" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                    android:gravity="end" android:layout_marginStart="3dp" android:textColor="#9EADBA" android:textSize="9sp" android:maxLines="1" android:includeFontPadding="false" />
+            </LinearLayout>
+            <ImageView android:id="@+id/second_primary_bar" android:layout_width="match_parent" android:layout_height="2dp" android:layout_marginTop="1dp"
+                android:scaleType="fitXY" android:contentDescription="Verbrauch mit Soll-Marker" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/second_weekly_row" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
+                <TextView android:id="@+id/second_weekly_value" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textColor="#F2F5F8" android:textSize="10sp" android:maxLines="1" android:includeFontPadding="false" />
+                <TextView android:id="@+id/second_weekly_reset" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                    android:gravity="end" android:layout_marginStart="3dp" android:textColor="#9EADBA" android:textSize="9sp" android:maxLines="1" android:includeFontPadding="false" />
+            </LinearLayout>
+            <ImageView android:id="@+id/second_weekly_bar" android:layout_width="match_parent" android:layout_height="2dp" android:layout_marginTop="1dp"
+                android:scaleType="fitXY" android:contentDescription="Verbrauch mit Soll-Marker" />
+        </LinearLayout>
+    </LinearLayout>
+    </LinearLayout>
+    <LinearLayout android:layout_width="28dp" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center">
+        <TextView android:id="@+id/refresh" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center"
+            android:text="↻" android:textColor="#6ED8BA" android:textSize="24sp" android:includeFontPadding="false" android:contentDescription="Quota aktualisieren" android:visibility="gone" />
+        <TextView android:id="@+id/widget_more" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center"
+            android:textColor="#9EADBA" android:textSize="9sp" android:includeFontPadding="false" android:visibility="gone" />
+    </LinearLayout>
+</LinearLayout>

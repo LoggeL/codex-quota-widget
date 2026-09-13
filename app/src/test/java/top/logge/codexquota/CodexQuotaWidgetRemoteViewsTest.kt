@@ -48,30 +48,33 @@ class CodexQuotaWidgetRemoteViewsTest {
     @Test fun oneRowUsesTwoColumnsWithSeparateQuotaAndReset() {
         val root = CodexQuotaWidgetProvider.buildViews(context, listOf(account("one", 25), account("two", 19)), 56, now)
             .apply(context, FrameLayout(context))
-        val rows = root.findViewById<LinearLayout>(R.id.account_rows)
-        assertEquals(LinearLayout.HORIZONTAL, rows.orientation)
-        assertEquals(2, rows.childCount)
-        assertTrue(rows.getChildAt(0).findViewById<ImageView>(R.id.window_progress).contentDescription.contains("25 % verbraucht"))
-        assertTrue(rows.getChildAt(1).findViewById<ImageView>(R.id.window_progress).contentDescription.contains("19 % verbraucht"))
-        assertEquals("W 25→25%", rows.getChildAt(0).findViewById<TextView>(R.id.window_value).text.toString())
-        assertEquals("2h", rows.getChildAt(0).findViewById<TextView>(R.id.window_reset).text.toString())
+        assertEquals(LinearLayout.HORIZONTAL, root.findViewById<LinearLayout>(R.id.account_rows).orientation)
+        assertEquals(View.VISIBLE, root.findViewById<View>(R.id.first_account).visibility)
+        assertEquals(View.VISIBLE, root.findViewById<View>(R.id.second_account).visibility)
+        assertTrue(root.findViewById<ImageView>(R.id.first_weekly_bar).contentDescription.contains("25 % verbraucht"))
+        assertTrue(root.findViewById<ImageView>(R.id.second_weekly_bar).contentDescription.contains("19 % verbraucht"))
+        assertEquals("W 25→25%", root.findViewById<TextView>(R.id.first_weekly_value).text.toString())
+        assertEquals("2h", root.findViewById<TextView>(R.id.first_weekly_reset).text.toString())
     }
     @Test fun oneRowPreservesBothWindowTypes() {
         val first = account().copy(quota = Quota("pro", WindowQuota(72, "1h", now + 3600000), account().quota!!.weekly))
         val root = CodexQuotaWidgetProvider.buildViews(context, listOf(first, account("two")), 56, now)
             .apply(context, FrameLayout(context))
-        val windows = root.findViewById<LinearLayout>(R.id.window_rows)
-        assertEquals(2, windows.childCount)
-        assertEquals("5h 72→90%", windows.getChildAt(0).findViewById<TextView>(R.id.window_value).text.toString())
-        assertEquals("W 25→25%", windows.getChildAt(1).findViewById<TextView>(R.id.window_value).text.toString())
+        assertEquals(View.VISIBLE, root.findViewById<View>(R.id.first_primary_row).visibility)
+        assertEquals(View.VISIBLE, root.findViewById<View>(R.id.first_weekly_row).visibility)
+        assertEquals("5h 72→90%", root.findViewById<TextView>(R.id.first_primary_value).text.toString())
+        assertEquals("W 25→25%", root.findViewById<TextView>(R.id.first_weekly_value).text.toString())
     }
-    @Test fun oneRowReapplyClearsRemovedAccountAndShowsLoginWhenEmpty() {
+    @Test fun oneRowReapplyHidesRemovedAccountAndShowsLoginWhenEmpty() {
         val root = CodexQuotaWidgetProvider.buildViews(context, listOf(account(), account("two")), 56, now)
             .apply(context, FrameLayout(context))
         CodexQuotaWidgetProvider.buildViews(context, listOf(account()), 56, now).reapply(context, root)
-        assertEquals(1, root.findViewById<LinearLayout>(R.id.account_rows).childCount)
+        assertEquals(View.VISIBLE, root.findViewById<View>(R.id.first_account).visibility)
+        assertEquals(View.GONE, root.findViewById<View>(R.id.second_account).visibility)
+        assertEquals("", root.findViewById<TextView>(R.id.widget_more).text.toString())
         CodexQuotaWidgetProvider.buildViews(context, emptyList(), 56, now).reapply(context, root)
-        assertEquals(0, root.findViewById<LinearLayout>(R.id.account_rows).childCount)
+        assertEquals(View.GONE, root.findViewById<View>(R.id.first_account).visibility)
+        assertEquals(View.GONE, root.findViewById<View>(R.id.second_account).visibility)
         assertEquals(View.VISIBLE, root.findViewById<View>(R.id.empty_state).visibility)
         assertEquals(View.GONE, root.findViewById<View>(R.id.account_rows).visibility)
     }
@@ -79,10 +82,22 @@ class CodexQuotaWidgetRemoteViewsTest {
         val root = CodexQuotaWidgetProvider.buildViews(context,
             listOf(account().copy(error = "Erneut anmelden"), account("two")), 56, now + 7200001)
             .apply(context, FrameLayout(context))
-        val rows = root.findViewById<LinearLayout>(R.id.account_rows)
-        assertEquals("!", rows.getChildAt(0).findViewById<TextView>(R.id.compact_status).text.toString())
-        assertEquals("alt", rows.getChildAt(1).findViewById<TextView>(R.id.compact_status).text.toString())
-        assertEquals("fällig", rows.getChildAt(1).findViewById<TextView>(R.id.window_reset).text.toString())
+        assertEquals("!", root.findViewById<TextView>(R.id.first_status).text.toString())
+        assertEquals("alt", root.findViewById<TextView>(R.id.second_status).text.toString())
+        assertEquals("fällig", root.findViewById<TextView>(R.id.second_weekly_reset).text.toString())
     }
-
+    @Test fun refreshRemovesMissingWindowAndRecoversFromNoQuota() {
+        val first = account().copy(quota = Quota("pro", WindowQuota(72, "1h", now + 3600000), account().quota!!.weekly))
+        val root = CodexQuotaWidgetProvider.buildViews(context, listOf(first), 56, now).apply(context, FrameLayout(context))
+        CodexQuotaWidgetProvider.buildViews(context, listOf(account()), 56, now).reapply(context, root)
+        assertEquals(View.GONE, root.findViewById<View>(R.id.first_primary_row).visibility)
+        assertEquals(View.VISIBLE, root.findViewById<View>(R.id.first_weekly_row).visibility)
+        CodexQuotaWidgetProvider.buildViews(context, listOf(account().copy(quota = null)), 56, now).reapply(context, root)
+        assertEquals(View.GONE, root.findViewById<View>(R.id.first_weekly_row).visibility)
+        assertEquals(View.VISIBLE, root.findViewById<View>(R.id.first_error).visibility)
+        CodexQuotaWidgetProvider.buildViews(context, listOf(first), 56, now).reapply(context, root)
+        assertEquals(View.GONE, root.findViewById<View>(R.id.first_error).visibility)
+        assertEquals(View.VISIBLE, root.findViewById<View>(R.id.first_weekly_row).visibility)
+        assertEquals(View.VISIBLE, root.findViewById<View>(R.id.first_primary_row).visibility)
+    }
 }

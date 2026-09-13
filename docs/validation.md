@@ -1,3 +1,12 @@
+# v1.0.2 validation
+
+- 46 JVM/Robolectric tests. Added calculations for exact elapsed fractions, weekly-only projections above 100%, API-provided durations, deficit/ahead signs, the original warning thresholds, unavailable/start-of-window forecasts, reset expiry, fixed snapshot time and independent account/window selection.
+- Five native Android instrumentation tests on the dedicated API 36 emulator. Existing encryption, migration, app and widget checks remain; pixel assertions verify the consumed segment, unused track and white expected-consumption marker using Android's real Canvas renderer.
+- Compact RemoteViews checked at 360 x 56 dp and 250 x 56 dp, with one or both quota windows, 130% font scaling, forecasts over 1,000%, complete reset countdowns, failed refreshes, absent data and no accounts. Names may ellipsize; forecast, delta and reset labels are checked for their full measured width and line height.
+- Detailed RemoteViews checked at 360 x 200 dp (including two accounts with failed refreshes) and 360 x 260 dp. Bars and quota text must fit their measured bounds; screenshots were visually inspected. The compact layout remains active until enough height is available for the restored details.
+- Forecasts use each snapshot's original timestamp, preserving its budget comparison while cached. They become unavailable at the reset, rather than implying a refilled quota. The app and README explain the linear estimate and percentage-point notation.
+- Version code 9 retains the v1 signer and encrypted account format. Release packaging runs unit tests and release lint and verifies certificate, package identity and non-debuggable configuration. The published APK is independently downloaded and checked against its packaged SHA-256.
+
 # v1.0.1 validation
 
 - 37 JVM/Robolectric tests, including two-column 4x1 rendering, both window types, independent bars, account removal/reapplication, empty state, failed refreshes and expired snapshots.

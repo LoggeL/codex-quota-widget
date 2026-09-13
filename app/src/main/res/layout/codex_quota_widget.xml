@@ -8,7 +8,7 @@
         <TextView android:includeFontPadding="false" android:id="@+id/widget_count" android:layout_width="0dp" android:layout_weight="1"
             android:layout_height="wrap_content" android:layout_marginStart="8dp" android:textColor="#9EADBA" android:textSize="11sp" />
         <TextView android:includeFontPadding="false" android:id="@+id/refresh" android:layout_width="40dp" android:layout_height="match_parent"
-            android:gravity="center" android:text="↻" android:textSize="24sp" android:textColor="#6ED8BA"
+            android:gravity="center" android:text="↻" android:textSize="22sp" android:textColor="#6ED8BA"
             android:contentDescription="Quota aktualisieren" />
     </LinearLayout>
     <TextView android:includeFontPadding="false" android:id="@+id/empty_state" android:layout_width="match_parent" android:layout_height="wrap_content"

@@ -1,22 +1,42 @@
 # Codex Quota Widget
 
-An Android app and home-screen widget for viewing the remaining Codex quota of multiple ChatGPT accounts. Each account has its own bars, reset times, cached data and login. Percentages are never added across accounts.
+An Android app and home-screen widget for viewing Codex quota, consumption forecasts and pacing for multiple ChatGPT accounts. Each account has its own bars, reset times, cached data and login. Percentages are never added across accounts.
 
 [Download the latest APK](https://github.com/LoggeL/codex-quota-widget/releases/latest)
 
 ![Two independent account quotas, illustrated with test data](docs/widget-preview.png)
 
-## Version 1.0.1
+## Version 1.0.2
 
-The widget now defaults to **4x1**, with both accounts side by side. Each column shows its account name, remaining quota, reset countdown and separate bars. `W` means weekly and `5h` means the short window. `frei` identifies remaining quota; `alt` or `!` marks an expired snapshot or a failed refresh. Tap the widget for full status details.
+Consumption forecasts, the expected-consumption marker and ahead/deficit comparisons are restored for each account. Both accounts remain side by side in the default **4x1** layout.
 
-The compact layout supports 250 x 56 dp, including two windows per account and 130% font scaling. Resize an existing widget to one row, or add it again. At 140 dp height or more the detailed layout returns automatically.
+- `W 25→175%`: 25% of the weekly quota used; at the same average pace, projected usage at reset is 175%.
+- `+11pp`: 11 percentage points above the elapsed-time budget (deficit). `−11pp` means 11 points ahead. With two windows, the account header identifies the window with the greatest deficit, for example `W +11pp`.
+- Bars show **consumed** quota; the white marker shows expected consumption at the last measurement. Amber starts at 7 points over budget, red at 15. The app explains every window separately, including remaining quota and reset times.
+- `alt` or `!` marks an old snapshot or failed refresh. `?` means the forecast cannot be calculated. A reset invalidates the old forecast until new usage arrives.
 
-**Updating from 1.0.0:** install 1.0.1 over the existing app. The application ID, signing certificate and encrypted account format are unchanged.
+The compact layout supports 250 x 56 dp, including both windows per account and 130% font scaling. Long values use compact notation (`1.4k%` means about 1,400%). Font sizes adapt when necessary to keep both the forecast and reset countdown complete. At 200 dp height or more (scaled with the system font size) the detailed layout returns; at 240 dp it also shows the written pace status per window.
+
+**Updating from 1.0.0 or 1.0.1:** install 1.0.2 over the existing app. The application ID, signing certificate and encrypted account format are unchanged.
+
+### How the forecast works
+
+For a quota snapshot taken at time `t`, let `D` be the quota window duration and `R` its absolute reset time:
+
+```text
+elapsed = t - (R - D)
+expected consumption = 100 * elapsed / D
+budget delta = actual used percent - expected consumption
+projected consumption at reset = actual used percent * D / elapsed
+```
+
+The duration reported by the API takes precedence; otherwise the fallback is five hours or seven days for the respective window. Calculations use the exact elapsed fraction before rounding display values. Projections can exceed 100% and are not capped at the quota limit. This is a linear estimate assuming the same average consumption rate, not a prediction of future activity or permission to exceed a limit.
+
+Pacing is evaluated at the snapshot time, so cached usage does not appear to improve as the clock advances. The reset countdown still uses the current time. A missing reset, invalid window or completed reset yields no forecast. At the exact window start, the budget marker is zero but the projection is unknown because no time has elapsed. Account percentages and forecasts are never combined.
 
 ## Multi-account features
 
-- Account cards in the app and widget, with remaining quota and separate reset times.
+- Account cards with current consumption, remaining quota in the app, independent forecasts, budget comparisons and reset times.
 - Add, rename and remove accounts. Signing in to the same account again renews its login instead of creating a duplicate.
 - Weekly-only accounts display just their weekly window. Two accounts fit in the default 4x1 widget, including accounts with both windows. Enlarge it for more detailed status text.
 - The widget displays the first two accounts and links to any additional accounts in the app.
@@ -81,7 +101,8 @@ The v1 signer SHA-256 fingerprint is `ff7f5e3369f7063ad452036834317fda47c1f40d32
 | `LoginCoordinator` | One cancellable device login, persisted across process recreation. |
 | `QuotaRepository` | Serialized refresh, token rotation, isolated caches and failures. |
 | `UsageParser`, `QuotaCacheCodec` | Quota response normalization and timestamp preservation. |
-| `QuotaPresentation` | Shared per-account remaining-quota and freshness rules. |
+| `QuotaPace`, `QuotaPresentation` | Snapshot-based forecasts, budget comparisons, remaining quota and freshness rules. |
+| `QuotaUsageBar`, `CompactQuotaWidget` | Consumption/expected-marker rendering and the two-column 4x1 layout. |
 | `QuotaRuntime`, `QuotaRefreshJob` | Application-scoped work, listeners and Android scheduling. |
 | `MainActivity`, `CodexQuotaWidgetProvider` | Account management and native RemoteViews rendering. |
 

@@ -19,7 +19,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.ProgressBar
+import android.widget.ImageView
 import android.widget.ScrollView
 import android.widget.TextView
 
@@ -68,7 +68,7 @@ class MainActivity : Activity() {
         }
         root.addView(text("CODEX / QUOTA", 12, accent, bold = true))
         root.addView(text("Deine Accounts.\nAlles im Blick.", 30, ink, bold = true).apply { setPadding(0, dp(12), 0, dp(12)) })
-        root.addView(text("Verbleibende Quota pro Account. Jeder Balken und jeder Reset gehört zu genau einem Account.", 14, muted))
+        root.addView(text("Restquota, Verbrauch und Prognose für jeden Account.", 14, muted))
         localMessage?.let { root.addView(text(it, 14, accent)) }
         runtime.login.message?.let { root.addView(text(it, 14, accent)) }
 
@@ -80,6 +80,12 @@ class MainActivity : Activity() {
         }
         state.accounts.forEach { account -> root.addView(accountCard(account)) }
 
+        if (state.accounts.isNotEmpty()) root.addView(card().apply {
+            addView(text("So liest du die Prognose", 16, ink, bold = true))
+            addView(text("25 → 175 % heißt: 25 % verbraucht, bei gleichem Durchschnittstempo bis zum Reset voraussichtlich 175 %. Die Hochrechnung nutzt die Zeit seit Beginn des Quota-Fensters und den letzten Datenstand.", 13, muted))
+            addView(text("Der Balken zeigt den Verbrauch. Die weiße Marke zeigt das Soll bei gleichmäßiger Nutzung. +11 pp bedeutet 11 Prozentpunkte Defizit, −11 pp entsprechend Vorsprung. Im 4×1-Widget steht oben der Vergleich für das knappere Zeitfenster (5h oder W).", 13, muted))
+            addView(text("Eine Schätzung, keine Zusage: Dein künftiges Tempo kann sich ändern. Bei alten Daten erst aktualisieren; nach dem Reset ist die alte Prognose ungültig.", 12, muted))
+        })
         val pending = state.pendingLogin
         if (pending != null) root.addView(card().apply {
             addView(text("Anmeldung abschließen", 20, ink, bold = true))
@@ -142,12 +148,15 @@ class MainActivity : Activity() {
                     addView(text(window.label, 14, muted), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                     addView(text(window.text, 22, ink, bold = true))
                 })
-                addView(ProgressBar(this@MainActivity, null, android.R.attr.progressBarStyleHorizontal).apply {
-                    max = 100; progress = window.remaining
-                    progressTintList = ColorStateList.valueOf(if (window.expired || window.remaining < 15) Color.rgb(240, 191, 118) else accent)
-                    progressBackgroundTintList = ColorStateList.valueOf(Color.rgb(41, 54, 68))
-                    contentDescription = "${data.name}: ${window.label}, ${window.text}"
-                }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(6)))
+                addView(text("${window.used} % verbraucht", 12, muted))
+                addView(ImageView(this@MainActivity).apply {
+                    setImageBitmap(QuotaUsageBar.bitmap(window))
+                    scaleType = ImageView.ScaleType.FIT_XY
+                    contentDescription = QuotaUsageBar.description(data.name, window)
+                }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(8)))
+                addView(text(window.forecastText, 14, ink).apply { setPadding(0, dp(8), 0, 0) })
+                addView(text(window.paceText, 12, QuotaUsageBar.color(window.pace)))
+                window.pace?.let { addView(text(it.status, 12, QuotaUsageBar.color(it), bold = true)) }
                 addView(text(window.resetText, 12, muted).apply { setPadding(0, dp(6), 0, 0) })
             }
             if (data.windows.isEmpty()) addView(text("Aktualisiere die Quota oder melde diesen Account erneut an.", 14, muted))

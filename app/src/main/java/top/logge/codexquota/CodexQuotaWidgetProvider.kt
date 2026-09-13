@@ -35,16 +35,18 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
             if (ids.isEmpty()) return
             val state = runCatching { QuotaRuntime.get(context).store.read() }
             ids.forEach { id ->
-                val height = manager.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 56)
+                val options = manager.getAppWidgetOptions(id)
+                val width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250)
+                val height = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 56)
                 manager.updateAppWidget(id, buildViews(context, state.getOrNull()?.accounts.orEmpty(), height,
-                    storageError = state.isFailure))
+                    storageError = state.isFailure, width = width))
             }
         }
 
-        internal fun buildViews(context: Context, accounts: List<Account>, height: Int = 160,
-            now: Long = System.currentTimeMillis(), storageError: Boolean = false): RemoteViews {
-            val oneRow = height < 140
-            val views = if (oneRow) CompactQuotaWidget.build(context, accounts, now, storageError)
+        internal fun buildViews(context: Context, accounts: List<Account>, height: Int = 200,
+            now: Long = System.currentTimeMillis(), storageError: Boolean = false, width: Int = 250): RemoteViews {
+            val oneRow = height < 200 * context.resources.configuration.fontScale
+            val views = if (oneRow) CompactQuotaWidget.build(context, accounts, now, storageError, width)
                 else RemoteViews(context.packageName, R.layout.codex_quota_widget)
             val openIntent = Intent(context, MainActivity::class.java).setAction(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LAUNCHER)
@@ -73,19 +75,23 @@ class CodexQuotaWidgetProvider : AppWidgetProvider() {
                         val textId = if (index == 0) R.id.pair_primary_text else R.id.pair_weekly_text
                         val barId = if (index == 0) R.id.pair_primary_bar else R.id.pair_weekly_bar
                         val resetId = if (index == 0) R.id.pair_primary_reset else R.id.pair_weekly_reset
-                        pair.setTextViewText(textId, "${window.label} · ${window.text}")
-                        pair.setTextViewText(resetId, window.resetText)
-                        pair.setProgressBar(barId, 100, window.remaining, false)
-                        pair.setContentDescription(barId, "${card.name}: ${window.label}, ${window.text}, ${window.resetText}")
+                        pair.setTextViewText(textId, "${window.label} ${window.usageForecast}")
+                        val paceId = if (index == 0) R.id.pair_primary_pace else R.id.pair_weekly_pace
+                        pair.setTextViewText(paceId, window.shortPaceText)
+                        pair.setViewVisibility(paceId, if (compact) View.GONE else View.VISIBLE)
+                        pair.setTextViewText(resetId, if (compact) "${window.pace?.shortDelta ?: "?"} · Reset ${CompactQuotaWidget.shortReset(window)}" else window.resetText)
+                        pair.setImageViewBitmap(barId, QuotaUsageBar.bitmap(window))
+                        pair.setContentDescription(barId, QuotaUsageBar.description(card.name, window))
                     }
                     row.addView(R.id.window_rows, pair)
                 } else card.windows.forEach { window ->
                     val quota = RemoteViews(context.packageName, R.layout.widget_window)
                     quota.setTextViewText(R.id.window_label, window.label)
-                    quota.setTextViewText(R.id.window_value, window.text)
+                    quota.setTextViewText(R.id.window_value, window.usageForecast)
+                    quota.setTextViewText(R.id.window_pace, window.shortPaceText)
                     quota.setTextViewText(R.id.window_reset, window.resetText)
-                    quota.setProgressBar(R.id.window_progress, 100, window.remaining, false)
-                    quota.setContentDescription(R.id.window_progress, "${card.name}: ${window.label}, ${window.text}, ${window.resetText}")
+                    quota.setImageViewBitmap(R.id.window_progress, QuotaUsageBar.bitmap(window))
+                    quota.setContentDescription(R.id.window_progress, QuotaUsageBar.description(card.name, window))
                     row.addView(R.id.window_rows, quota)
                 }
                 views.addView(R.id.account_rows, row)

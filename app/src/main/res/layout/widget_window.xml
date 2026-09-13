@@ -10,7 +10,9 @@
             android:layout_height="wrap_content" android:gravity="end" android:maxLines="1"
             android:textSize="10sp" android:textColor="#9EADBA" />
     </LinearLayout>
-    <ProgressBar android:id="@+id/window_progress" style="?android:attr/progressBarStyleHorizontal"
+    <ImageView android:id="@+id/window_progress"
         android:layout_width="match_parent" android:layout_height="4dp" android:layout_marginTop="3dp"
-        android:progressTint="#6ED8BA" android:progressBackgroundTint="#293644" android:max="100" />
+        android:scaleType="fitXY" android:contentDescription="Verbrauch mit Soll-Marker" />
+    <TextView android:id="@+id/window_pace" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textSize="10sp" android:includeFontPadding="false" android:textColor="#9EADBA" android:maxLines="1" />
 </LinearLayout>
